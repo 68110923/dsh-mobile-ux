@@ -1,0 +1,45 @@
+{
+  "name": "@local/mobile-keyboard-viewport",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile UX pack for the DSH Web shell: narrow-screen layout fixes, iOS keyboard/viewport handling, and single-tap session switching.",
+  "meta": {
+    "title": "移动端体验优化",
+    "description": "窄屏布局修复 + iOS 键盘/输入框跟随 + 侧边栏单击切换会话，三合一。"
+  },
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json"
+  ],
+  "scripts": {
+    "test": "node tools/client.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "dshMobileUx": {
+    "name": "dsh-mobile-ux",
+    "repository": "https://github.com/68110923/dsh-mobile-ux",
+    "credits": [
+      "https://github.com/AcidGr/dsh-web-mobile-fix",
+      "https://github.com/TecFancy/dsh-mobile"
+    ]
+  }
+}
