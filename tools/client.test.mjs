@@ -37,7 +37,8 @@ function check(name, actual, expected) {
  * @param {{ search?: string, viewport?: object|null, innerHeight?: number }} options
  */
 function load(options = {}) {
-  const { search = '', innerHeight = 665, userAgent = 'iPhone', maxTouchPoints = 5 } = options;
+  const { search = '', innerHeight = 665, userAgent = 'iPhone', maxTouchPoints = 5,
+    metaElement = null } = options;
   const listeners = new Map();
   const timers = [];
 
@@ -163,7 +164,7 @@ function load(options = {}) {
     head,
     activeElement: null,
     getElementById: (id) => (id === 'root' ? root : null),
-    querySelector: () => null,
+    querySelector: (selector) => (selector.includes('meta') ? metaElement : null),
     // §3 prefers the drawer's own toggle button over the layout service.
     querySelectorAll: (selector) =>
       selector.includes('button') ? [collapseButton] : [],
@@ -567,6 +568,32 @@ console.log('dsh-mobile-ux: client logic');
   env.listeners.get('win:scroll')();
   check('zoomed: a stray document scroll is still reset', env.win.scrollY, 0);
   env.dispose();
+}
+
+// 12. The page scale is pinned by default: that is what stops the focus magnify.
+{
+  const meta = () => {
+    const element = { name: 'viewport', content: 'width=device-width, initial-scale=1' };
+    element.getAttribute = (key) => (key === 'content' ? element.content : null);
+    element.setAttribute = (key, value) => {
+      if (key === 'content') element.content = value;
+    };
+    return element;
+  };
+
+  const pinned = load({ metaElement: meta() });
+  check('zoom: scale pinned by default',
+    /maximum-scale=1/.test(pinned.document.querySelector('meta').content), true);
+  check('zoom: existing settings preserved',
+    /width=device-width/.test(pinned.document.querySelector('meta').content), true);
+  pinned.dispose();
+  check('zoom: meta restored on dispose',
+    pinned.document.querySelector('meta').content, 'width=device-width, initial-scale=1');
+
+  const free = load({ search: '?dshMobileUx=freezoom', metaElement: meta() });
+  check('freezoom: scale left alone',
+    /maximum-scale/.test(free.document.querySelector('meta').content), false);
+  free.dispose();
 }
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

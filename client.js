@@ -38,7 +38,7 @@
  *   nolayout | nokeyboard | notap | notrajectory   drop the listed sections
  *   keepdrawer   leave the sidebar drawer open after a session tap
  *   lock | nolock    document scroll lock while the keyboard is open
- *   meta             also pin `maximum-scale` in the viewport meta
+ *   freezoom         let the page be magnified (by default the scale is pinned)
  *   hud              show the live readout
  *
  * The same switches can be set before load as `window.__dshMobileUx = {...}`.
@@ -330,6 +330,15 @@ window.__ModuleLoader__.load({
        * @param fallback - value when the URL says nothing.
        * @returns the resolved switch.
        */
+      /**
+       * @param name - switch name; the default is on unless `free<name>` is given.
+       * @returns true unless the URL opted out with `free<name>`.
+       */
+      const pickDefaultOn = (name) => {
+        if (off) return false;
+        if (window.__dshMobileUx?.[name] !== undefined) return Boolean(window.__dshMobileUx[name]);
+        return !parts.includes(`free${name}`);
+      };
       const pick = (name, fallback) => {
         if (off) return false;
         if (window.__dshMobileUx?.[name] !== undefined) return Boolean(window.__dshMobileUx[name]);
@@ -354,7 +363,9 @@ window.__ModuleLoader__.load({
         closeDrawer: pick('closeDrawer', true),
         hud: optIn('hud'),
         lock: pick('lock', true),
-        meta: optIn('meta'),
+        // Pinning the scale is what stops the page being magnified when an
+        // editable below 16px takes focus; `?dshMobileUx=freezoom` opts out.
+        meta: pickDefaultOn('zoom'),
       };
     }
 
@@ -652,7 +663,16 @@ window.__ModuleLoader__.load({
       };
 
       /**
-       * Optionally pins `maximum-scale` so the platform cannot zoom on focus.
+       * Pins the page scale so a focused editable cannot magnify the page.
+       *
+       * This is the one problem the follower cannot solve on its own. iOS magnifies
+       * when an editable below 16px takes focus; raising the font size would defeat
+       * that, but text size belongs to the product and the reader's own setting, so
+       * the pack limits the scale instead. Measured effect of not limiting it: the
+       * visible height fell from 500 to 345 on a 390x844 phone, which is the
+       * "page got magnified" the reader reported.
+       *
+       * `?dshMobileUx=freezoom` opts out.
        *
        * @returns {() => void} restores the previous content attribute.
        */
