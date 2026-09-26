@@ -3,76 +3,112 @@
  *
  * Responsibilities, deliberately few:
  *
- *   1. Language switching. Two mechanisms coexist because they fit different
- *      shapes of content:
- *        - a text node inside a single element uses `data-zh` / `data-en`
- *          attributes, so the copy for both languages sits on one line and
- *          cannot drift apart;
- *        - a whole block of markup that differs structurally (a method with its
- *          own list and code sample) uses `data-lang-block="zh" | "en"`, and one
- *          of the two trees is hidden.
- *      Attributes are applied *after* the block toggle only inside the visible
- *      tree, so an element can never inherit the other language's text.
- *   2. Marking the current page in the header navigation.
+ *   1. Language switching. Every string on the site lives in
+ *      `locales/<lang>.json` under a key; the markup carries `data-i18n="<key>"`
+ *      and nothing else, plus the Chinese copy as inline fallback. Changing a
+ *      sentence, fixing a translation or adding a language therefore never
+ *      touches the HTML.
+ *   2. Marking the current page in the header and footer navigation, before any
+ *      script runs (the builder already does it) and again for the `index.html`
+ *      spelling of the home page.
  *   3. Small visual affordances: terminal blocks get their command token
- *      highlighted, and the anchor strip scrolls the active section into view.
+ *      highlighted, and the anchor strip keeps the active section in view.
  *
- * With JavaScript disabled the pages still render completely, in Chinese, with
- * every anchor and both language blocks visible.
+ * With JavaScript disabled the pages render completely in Chinese, with every
+ * anchor and both page menus intact.
  */
 (function () {
   var LANGUAGE_KEY = 'dsh-mobile-ux:lang';
+  var COPY = window.__dshMobileUxCopy || {};
+  var LANGUAGES = Object.keys(COPY);
+  var DEFAULT_LANGUAGE = 'zh';
   var root = document.documentElement;
   var buttons = Array.prototype.slice.call(document.querySelectorAll('.langs button'));
-  var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-zh][data-en]'));
-  var blocks = Array.prototype.slice.call(document.querySelectorAll('[data-lang-block]'));
+  var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-i18n]'));
+  var metaNodes = Array.prototype.slice.call(document.querySelectorAll('[data-i18n-content]'));
 
   /** @returns the stored preference, or null. */
   function storedLanguage() {
     try {
       var value = localStorage.getItem(LANGUAGE_KEY);
-      return value === 'zh' || value === 'en' ? value : null;
+      return LANGUAGES.indexOf(value) >= 0 ? value : null;
     } catch (error) {
       return null;
     }
   }
 
   /**
+   * Picks the best match for the browser's own preference list.
+   *
+   * @returns a language code the site actually has.
+   */
+  function browserLanguage() {
+    var tags = navigator.languages || [navigator.language || ''];
+    for (var i = 0; i < tags.length; i += 1) {
+      var tag = String(tags[i]).toLowerCase();
+      for (var j = 0; j < LANGUAGES.length; j += 1) {
+        if (tag.indexOf(LANGUAGES[j]) === 0) return LANGUAGES[j];
+      }
+    }
+    return DEFAULT_LANGUAGE;
+  }
+
+  /**
+   * Resolves one key for one language, falling back to the inline copy.
+   *
+   * @param key - the `data-i18n` key.
+   * @param lang - the language code.
+   * @param fallback - what the markup already contains.
+   * @returns the string to show.
+   */
+  function resolve(key, lang, fallback) {
+    var table = COPY[lang];
+    if (table && typeof table[key] === 'string') return table[key];
+    var base = COPY[DEFAULT_LANGUAGE];
+    if (base && typeof base[key] === 'string') return base[key];
+    return fallback;
+  }
+
+  /** @returns the BCP-47 tag for a language code, for the `lang` attribute. */
+  function tagFor(lang) {
+    return lang === 'zh' ? 'zh-CN' : lang;
+  }
+
+  /**
    * Applies one language to the whole document.
    *
-   * @param lang - 'zh' or 'en'.
+   * @param lang - a language code present in the locale table.
    */
   function apply(lang) {
-    var key = lang === 'en' ? 'en' : 'zh';
-    root.setAttribute('lang', key === 'en' ? 'en' : 'zh-CN');
+    var key = LANGUAGES.indexOf(lang) >= 0 ? lang : DEFAULT_LANGUAGE;
+    root.setAttribute('lang', tagFor(key));
 
-    // 1. Structural blocks first: deciding what is visible before rewriting text
-    //    keeps the two mechanisms from fighting over the same node.
-    for (var b = 0; b < blocks.length; b += 1) {
-      var block = blocks[b];
-      var blockLang = block.getAttribute('data-lang-block');
-      var hidden = blockLang !== key;
-      block.hidden = hidden;
-      if (hidden) block.setAttribute('aria-hidden', 'true');
-      else block.removeAttribute('aria-hidden');
-    }
-
-    // 2. Attribute-based copy, skipping anything inside a hidden block.
     for (var i = 0; i < nodes.length; i += 1) {
       var node = nodes[i];
-      if (node.closest('[data-lang-block][hidden]') !== null) continue;
-      var value = node.getAttribute('data-' + key);
-      if (value === null) continue;
+      var copyKey = node.getAttribute('data-i18n');
+      if (copyKey === null) continue;
+      var value = resolve(copyKey, key, node.textContent);
       if (node.tagName === 'TITLE') node.textContent = value;
-      else node.innerHTML = value;
+      else node.textContent = value;
     }
 
-    for (var j = 0; j < buttons.length; j += 1) {
-      buttons[j].setAttribute(
+    for (var m = 0; m < metaNodes.length; m += 1) {
+      var meta = metaNodes[m];
+      var metaKey = meta.getAttribute('data-i18n-content');
+      if (metaKey === null) continue;
+      meta.setAttribute('content', resolve(metaKey, key, meta.getAttribute('content') || ''));
+    }
+
+    for (var b = 0; b < buttons.length; b += 1) {
+      buttons[b].setAttribute(
         'aria-pressed',
-        buttons[j].getAttribute('data-lang') === key ? 'true' : 'false',
+        buttons[b].getAttribute('data-lang') === key ? 'true' : 'false',
       );
     }
+
+    // Element-level language, so screen readers and hyphenation follow the copy
+    // even in the parts that are not translated.
+    if (document.body !== null) document.body.setAttribute('lang', tagFor(key));
 
     try {
       localStorage.setItem(LANGUAGE_KEY, key);
@@ -88,15 +124,13 @@
   }
 
   var initial = storedLanguage();
-  if (initial !== null) apply(initial);
-  else if (!/^zh/i.test(navigator.language || '')) apply('en');
-
+  apply(initial !== null ? initial : browserLanguage());
 
   /**
-   * Publishes the real header height as `--header-h` so the sticky anchor strip
-   * sits exactly under it. The header changes height with the viewport (it
-   * becomes two rows on narrow screens) and with the language, so this is
-   * measured rather than hard-coded.
+   * Republishes the header height as `--header-h` so the sticky anchor strip sits
+   * exactly under it. The header changes height with the viewport (it becomes two
+   * rows on narrow screens) and with the language, so it is measured rather than
+   * hard-coded.
    */
   (function trackHeaderHeight() {
     var header = document.querySelector('header.top');
@@ -116,11 +150,14 @@
   // ---------------------------------------------------------------- chrome --
 
   /**
-   * Marks the header link that points at this document.
+   * Marks the navigation link that points at this document.
+   *
+   * The builder already marks the four canonical URLs; this also covers the
+   * `index.html` spelling of the home page and keeps header and footer in step.
    */
   (function markCurrentPage() {
     var here = location.pathname.replace(/index\.html$/, '');
-    var links = document.querySelectorAll('header.top nav.pages a');
+    var links = document.querySelectorAll('header.top nav.pages a, footer a');
     for (var i = 0; i < links.length; i += 1) {
       var href = links[i].getAttribute('href') || '';
       if (href.charAt(0) === '#' || /^https?:/.test(href)) continue;
@@ -150,8 +187,9 @@
   })();
 
   /**
-   * Keeps the active anchor visible in the horizontal strip as the reader
-   * scrolls past the sections.
+   * Keeps the active anchor visible in the strip as the reader scrolls past the
+   * sections. On desktop the strip is a vertical column, where `inline: center`
+   * would scroll sideways for no reason, so the axis follows the layout.
    */
   (function followSections() {
     var strip = document.querySelector('.anchors');
@@ -175,9 +213,6 @@
           if (link === undefined) continue;
           for (var l = 0; l < links.length; l += 1) links[l].removeAttribute('aria-current');
           link.setAttribute('aria-current', 'true');
-          if (typeof link.scrollIntoView === 'function') {
-            link.scrollIntoView({ block: 'nearest', inline: 'center' });
-          }
         }
       },
       { rootMargin: '-72px 0px -70% 0px', threshold: 0 },

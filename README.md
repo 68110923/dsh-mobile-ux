@@ -7,6 +7,8 @@
 > **在线介绍页：<https://68110923.github.io/dsh-mobile-ux/>**（`docs/` 目录，GitHub Pages，中英双语）
 > **安装指南：<https://68110923.github.io/dsh-mobile-ux/install.html>**
 > **接入指南：<https://68110923.github.io/dsh-mobile-ux/access.html>** —— 从电脑或手机用上服务器上的 dsh web：SSH 隧道 / nginx + IP / nginx + 域名 + TLS
+>
+> 三个页面由 `tools/site/build.py` 从同一份页眉/页脚/菜单 + `locales/*.json` 词条生成；改站点看 [`tools/site/README.md`](./tools/site/README.md)。
 
 ---
 

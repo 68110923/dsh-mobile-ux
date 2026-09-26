@@ -1,48 +1,3 @@
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title data-i18n="index.title">dsh-mobile-ux — DSH Web 手机端体验优化插件</title>
-    <meta name="description" data-i18n-content="index.description" content="DeepSeek Harness Web 壳层的手机端体验优化插件：窄屏布局修复、iOS 键盘与输入框跟随、侧边栏单击切换会话、轨迹面板打开即到最新。纯客户端，桌面零回归，每一节都能单独关掉。" />
-    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./assets/site.css" />
-  </head>
-  <body>
-    <a class="skip" href="#main" data-i18n="nav.skip">跳到正文</a>
-
-    <header class="top">
-      <div class="wrap">
-        <a class="brand" href="./" title="dsh-mobile-ux">
-          <img src="./assets/icon.svg" alt="" aria-hidden="true" />
-          <span class="name">dsh-mobile-ux</span>
-        </a>
-        <span class="navslot">
-          <nav class="pages" aria-label="Pages / 页面">
-            <a href="./" data-i18n="nav.home" aria-current="page">首页</a>
-            <a href="./access.html" data-i18n="nav.access">接入指南</a>
-            <a href="./install.html" data-i18n="nav.install">安装指南</a>
-          </nav>
-          <span class="langs" role="group" aria-label="Language / 语言">
-            <button type="button" data-lang="zh" aria-pressed="true">中文</button>
-            <button type="button" data-lang="en" aria-pressed="false">EN</button>
-          </span>
-        </span>
-      </div>
-    </header>
-
-    <nav class="anchors" aria-label="Sections / 本页导航">
-      <ul>
-        <li><a href="#why" data-i18n="anchor.index.why">七个问题</a></li>
-        <li><a href="#features" data-i18n="anchor.index.features">五个能力</a></li>
-        <li><a href="#install" data-i18n="anchor.index.install">安装</a></li>
-        <li><a href="#switches" data-i18n="anchor.index.switches">开关</a></li>
-        <li><a href="#credits" data-i18n="anchor.index.credits">致谢</a></li>
-        <li><a href="#limits" data-i18n="anchor.index.limits">边界</a></li>
-      </ul>
-    </nav>
-
-    <main class="wrap" id="main">
       <div class="hero">
         <h1
          
@@ -284,23 +239,3 @@ systemctl restart dsh-web</code></pre>
           <li data-i18n="index.limits.no-product-source-is-modified-and-5">不改任何产品源码，也不依赖服务端组件；卸载即完全可逆。</li>
         </ul>
       </section>
-    </main>
-
-    <footer>
-      <div class="wrap row">
-        <a href="https://github.com/68110923/dsh-mobile-ux" data-i18n="nav.repo">GitHub 仓库</a>
-        <span class="sep">·</span>
-        <a href="./access.html" data-i18n="nav.access">接入指南</a>
-        <span class="sep">·</span>
-        <a href="./install.html" data-i18n="nav.install">安装指南</a>
-        <span class="sep">·</span>
-        <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/LICENSE">MIT License</a>
-        <span class="sep">·</span>
-        <span data-i18n="index.footer.note">为 DeepSeek Harness 的 Web profile 编写</span>
-      </div>
-    </footer>
-
-    <script src="./assets/locales.js"></script>
-    <script src="./assets/site.js"></script>
-  </body>
-</html>

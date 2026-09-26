@@ -34,6 +34,11 @@
   --radius-lg: 20px;
   --measure: 62rem;
   --gutter: 14px;
+  /* Home-indicator / notch insets. `viewport-fit=cover` lets the page paint into
+     them, so the chrome has to keep its own distance. */
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -105,13 +110,17 @@ code {
   padding: 0.12em 0.4em;
   font-size: 0.9em;
   color: var(--code-fg);
+  /* Inline code is often a whole command (`dsh plugin --profile web add …`) or a
+     path. Without this it forms one unbreakable run that widens its grid track
+     and, on a phone, the entire page. */
+  overflow-wrap: anywhere;
 }
 
 .wrap {
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
-  padding: 0 var(--gutter);
+  padding: 0 calc(var(--gutter) + var(--safe-l)) 0 calc(var(--gutter) + var(--safe-r));
 }
 
 .skip {
@@ -139,6 +148,10 @@ header.top {
 header.top .wrap {
   display: flex;
   align-items: center;
+  /* Wrap rather than overflow: at some widths the brand, the page menu and the
+     language switch cannot share one row, and a squeezed menu is worse than two
+     tidy rows. The narrow-screen block below decides where the break falls. */
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 54px;
 }
@@ -180,9 +193,12 @@ header.top .navslot {
 header.top nav.pages {
   display: flex;
   align-items: center;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* Wraps inside its own row before it would clip a tab. In the 420-470px band
+     the brand, four tabs and the language switch are just too wide together, and
+     a clipped "安装指南" reads as a missing page. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 4px;
 }
 
 header.top nav.pages::-webkit-scrollbar {
@@ -317,6 +333,20 @@ section > p.sub {
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr;
+}
+
+/* A grid or flex item defaults to `min-width: auto`, i.e. "never narrower than my
+   content's min-content width". A card holding a `<pre>` (white-space: pre) or a
+   wide table therefore refuses to shrink, the `1fr` track grows past its
+   container, and the whole document ends up wider than the phone — which is what
+   made the browser zoom the page out. Zeroing the automatic minimum lets the
+   inner scroll containers (`.term pre`, `.table-scroll`) do their job instead. */
+.cards > *,
+.card > *,
+.plan,
+.plan .body,
+ol.steps > li {
+  min-width: 0;
 }
 
 .card {
@@ -461,6 +491,8 @@ section > p.sub {
 .term pre {
   margin: 0;
   padding: 12px 14px;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.65;
@@ -481,6 +513,8 @@ pre.shell {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px 14px;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.65;
@@ -591,6 +625,8 @@ ol.steps ul li::before {
 /* --------------------------------------------------------------- tables -- */
 
 .table-scroll {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -695,7 +731,7 @@ ul.plain strong {
 footer {
   border-top: 1px solid var(--border);
   margin-top: 20px;
-  padding: 22px 0 44px;
+  padding: 22px 0 calc(44px + var(--safe-b));
   color: var(--fg-soft);
   font-size: 13.5px;
 }
@@ -713,10 +749,12 @@ footer .sep {
 
 /* ------------------------------------------------------------ desktop --- */
 
-/* Below 420px the brand, the page tabs and the language switch cannot share one
-   row without clipping a tab, so the header becomes two rows: identity and
-   language on top, the page tabs as a scrollable strip underneath. */
-@media (max-width: 419px) {
+/* Below 470px the brand, the page tabs and the language switch cannot share one
+   row without clipping the last tab, so the header becomes two rows: identity and
+   language on top, the page tabs as a strip underneath. Measured: at 430px the
+   menu needed 2-4px more than the row had, and at 320px it needed a second row
+   either way. Wrapping here keeps every page reachable on every phone. */
+@media (max-width: 469px) {
   header.top .wrap {
     flex-wrap: wrap;
     padding-top: 7px;
@@ -743,9 +781,117 @@ footer .sep {
 
 }
 
+/* Tablet (iPad portrait and up, and every desktop): the anchor strip stops being a
+   horizontal scroller and becomes a second column beside the text. On an iPad the
+   horizontal strip wastes a full row of height and is a long thumb travel to reach;
+   a column reads as a table of contents and keeps the reading measure intact. */
 @media (min-width: 720px) {
   :root {
     --gutter: 22px;
+  }
+
+  body {
+    /* Named areas rather than a float or a flex row: the anchor column has to be
+       *shorter* than the grid for `position: sticky` to have room to travel, and a
+       stretch-aligned flex item would be exactly as tall as the text column. */
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    grid-template-areas:
+      'header header'
+      'anchors main'
+      'footer footer';
+    align-items: start;
+  }
+
+  header.top {
+    grid-area: header;
+  }
+
+  footer {
+    grid-area: footer;
+  }
+
+  /* The chrome spans the page instead of sitting in a centred column: with a
+     full-width text column, a centred 62rem strip above and below it looks like a
+     different site bolted on. */
+  header.top .wrap,
+  footer .wrap {
+    max-width: none;
+  }
+
+  .anchors {
+    grid-area: anchors;
+    position: sticky;
+    /* The header is 58px here and stays put, so the column starts under it. */
+    top: 0;
+    width: auto;
+    /* Bounded by the viewport so a long list stays reachable; the header above it
+       is not part of this column. */
+    max-height: calc(100vh - 70px);
+    overflow-y: auto;
+    margin: 0;
+    background: none;
+    backdrop-filter: none;
+    border-bottom: 0;
+    padding: 26px 4px 26px 0;
+    scrollbar-width: thin;
+  }
+
+  .anchors ul {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0 0 0 var(--gutter);
+    overflow: visible;
+  }
+
+  .anchors li {
+    margin: 0 0 5px;
+  }
+
+  .anchors a {
+    display: block;
+    border: 0;
+    background: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13.5px;
+    /* Room for a long label to take two lines without the row jumping. */
+    line-height: 1.35;
+  }
+
+  .anchors a:hover,
+  .anchors a[aria-current="true"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  main {
+    grid-area: main;
+    /* `minmax(0, 1fr)` on the column does the shrinking; this keeps the element
+       itself from reintroducing the automatic minimum inside it. */
+    min-width: 0;
+    /* The page uses the window: sidebar at the left edge, text running to the
+       right gutter. `--measure` here is wide enough that it only bites on a very
+       large monitor, which is why the column is not re-centred — `main.wrap` still
+       carries `margin: 0 auto` from the base rule, so any max-width that actually
+       binds would centre the text again. */
+    max-width: var(--measure);
+    margin: 0;
+    padding-right: var(--gutter);
+  }
+
+  section {
+    /* The anchor column is not sticky furniture covering the content, so only the
+       header has to be cleared when jumping to a section. */
+    scroll-margin-top: 14px;
+  }
+
+  section {
+    /* The anchor column is not sticky furniture, so only the header has to be
+       cleared when jumping to a section. */
+    scroll-margin-top: calc(var(--header-h, 58px) + 14px);
   }
 
   header.top .wrap {
@@ -793,6 +939,16 @@ footer .sep {
 
   .plan .body {
     padding: 4px 20px 20px;
+  }
+}
+
+/* Desktop uses the window rather than re-centring a narrow column: the sidebar is
+   fixed on the left, the right gap is just the gutter, and the text stops at this
+   measure. Measured at 1440px before this cap: the longest prose lines ran 69-79
+   characters, past the comfortable 45-75 band; 74rem brings them back to ~62. */
+@media (min-width: 1100px) {
+  :root {
+    --measure: 86rem;
   }
 }
 
