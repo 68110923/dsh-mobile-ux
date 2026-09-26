@@ -21,8 +21,31 @@ window.__ModuleLoader__.load({
     /** Width at or below which the narrow-screen layout applies. */
     const NARROW_QUERY = '(max-width: 700px)';
 
+    /**
+     * Marks `html` when the font-size guard is in force.
+     *
+     * Set by the plugin, not by a media query: see {@link focusZoomGuardNeeded}.
+     */
+    const GUARD_FONT_ATTRIBUTE = 'data-dsh-mux-guard-font';
+
     /** The size a focused editable is raised to; see §2. */
     const FOCUS_FONT_SIZE = '17px';
+
+    /**
+     * How close to the bottom counts as "the reader is following the tail" (§4).
+     * Same two pixels the shell's own panels use, so the pack and the product agree
+     * on what "at the bottom" means.
+     */
+    const TAIL_THRESHOLD_PX = 2;
+
+    /**
+     * Re-assertion delays after a trajectory panel opens (§4).
+     *
+     * The product already scrolls its table to the end on mount, but a virtualised
+     * list keeps changing its row heights while settling, so that first attempt can
+     * land short and nothing corrects it afterwards.
+     */
+    const TRAJECTORY_SETTLE_MS = [60, 200, 500, 1000];
 
     /** How long a tap on a session row suppresses rename; see §3. */
     const TAP_RENAME_SUPPRESS_MS = 600;
@@ -61,10 +84,13 @@ window.__ModuleLoader__.load({
      * handler is already too late for the first tap of a session. A stylesheet
      * applies from load, which removes that first-tap window entirely.
      *
-     * Scoped to coarse pointers, so a desktop window keeps its own sizing.
+     * Gated on `html[data-dsh-mux-guard-font]`, which the plugin sets only where
+     * {@link focusZoomGuardNeeded} says the platform would zoom. A media query
+     * cannot express that: a touch-screen laptop matches `(pointer: coarse)` and
+     * would get its input text enlarged for nothing.
      */
     const ZOOM_GUARD_STYLES =
-      '@media (hover: none) and (pointer: coarse) {\n' +
+      'html[data-dsh-mux-guard-font] {\n' +
       '  [contenteditable=""], [contenteditable="true"],\n' +
       '  textarea:not([disabled]),\n' +
       '  input:not([disabled]):not([type]),\n' +
@@ -295,6 +321,8 @@ window.__ModuleLoader__.load({
         layout: pick('layout', true),
         keyboard: pick('keyboard', true),
         tap: pick('tap', true),
+        // §4: keep the trajectory panel's tail in view when it opens.
+        trajectory: pick('trajectory', true),
         // `?dshMobileUx=keepdrawer` leaves the drawer open after a tap, for
         // switching through several sessions in a row.
         closeDrawer: pick('closeDrawer', true),
@@ -364,6 +392,25 @@ window.__ModuleLoader__.load({
         window.matchMedia('(hover: none) and (pointer: coarse)').matches ||
         /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
       );
+    }
+
+    /**
+     * @returns true only where the platform zooms the page when a focused
+     *   editable renders below 16px.
+     *
+     * This is deliberately narrower than {@link touchDevice}: the font-size raise
+     * exists purely to defeat that zoom, and it is visible. A touch-screen laptop
+     * reports `(pointer: coarse)` and would have paid the size change with no
+     * benefit, so the guard keys off the platform that actually does it.
+     */
+    function focusZoomGuardNeeded() {
+      const userAgent = navigator.userAgent;
+      if (/iPhone|iPod/.test(userAgent)) return true;
+      if (/iPad/.test(userAgent)) return true;
+      // iPadOS 13+ reports a desktop UA; the touch points give it away.
+      if (/Macintosh/.test(userAgent) && (navigator.maxTouchPoints ?? 0) > 1) return true;
+      // Chromium on Android applies the same 16px rule.
+      return /Android/.test(userAgent) && /Chrome\//.test(userAgent);
     }
 
     /**
@@ -523,6 +570,88 @@ window.__ModuleLoader__.load({
       const switches = readPackSwitches();
       if (!switches.layout && !switches.keyboard && !switches.tap) return () => {};
 
+      /**
+       * Keeps the tail of the trajectory panel in view (§4).
+       *
+       * The trajectory table already scrolls itself to the end once, on mount. On a
+       * phone that single attempt is not enough: the list is virtualised, its rows
+       * receive their real heights a frame or two later, and the panel ends up
+       * parked somewhere in the middle of the history — which leaves the reader
+       * scrolling down for a long time to reach the newest activity.
+       *
+       * This re-asserts the tail a few times while the pane settles, and stops as
+       * soon as the reader is no longer at the bottom: scrolling up is an
+       * intention, and fighting it would be worse than the original bug.
+       */
+      let trajectoryTimers = [];
+      /**
+       * Panes the reader has deliberately scrolled away from, and the listener
+       * that noticed. Distance alone cannot tell "the panel just opened parked in
+       * the middle" (the bug) from "the reader scrolled up on purpose" — the
+       * intent has to be observed, not inferred from pixels.
+       */
+      const abandonedTrajectoryPanes = new WeakMap();
+      /**
+       * Starts watching one pane for a deliberate scroll away from its tail.
+       *
+       * @param pane - the trajectory scroll container.
+       */
+      const watchTrajectoryIntent = (pane) => {
+        if (abandonedTrajectoryPanes.has(pane)) return;
+        const state = { away: false };
+        const onScroll = () => {
+          const distance = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
+          // Only a decisive move counts: settling layout must not read as intent.
+          if (distance > Math.max(TAIL_THRESHOLD_PX, pane.clientHeight / 2)) state.away = true;
+        };
+        pane.addEventListener('scroll', onScroll, { passive: true });
+        abandonedTrajectoryPanes.set(pane, { state, onScroll });
+      };
+      /** @returns true when at least one pane was moved to its tail. */
+      const followTrajectoryTails = () => {
+        if (!switches.trajectory) return false;
+        let moved = false;
+        for (const pane of document.querySelectorAll('[data-trajectory-scroll]')) {
+          // Never fight a reader who scrolled up.
+          if (abandonedTrajectoryPanes.get(pane)?.state.away === true) continue;
+          const rows = pane.querySelectorAll('tr[data-record-index]');
+          const last = rows[rows.length - 1] ?? null;
+          // Anchoring on the last row also covers virtualised panes, whose
+          // scrollHeight is still being recomputed.
+          if (last !== null) last.scrollIntoView({ block: 'end', behavior: 'auto' });
+          else pane.scrollTop = pane.scrollHeight;
+          if (pane.scrollHeight - pane.clientHeight - pane.scrollTop > TAIL_THRESHOLD_PX) {
+            window.requestAnimationFrame(() => {
+              pane.scrollTop = pane.scrollHeight;
+            });
+          }
+          moved = true;
+        }
+        return moved;
+      };
+      const cancelTrajectoryFollow = () => {
+        while (trajectoryTimers.length > 0) window.clearTimeout(trajectoryTimers.pop());
+      };
+      const observedTrajectoryPanes = new WeakSet();
+      const trajectoryObserver =
+        switches.trajectory && typeof MutationObserver === 'function'
+          ? new MutationObserver(() => {
+              // A streaming chat mutates the DOM constantly; without this guard every
+              // token would cost a querySelectorAll.
+              if (doc.querySelector('[data-trajectory-scroll]') === null) return;
+              for (const pane of document.querySelectorAll('[data-trajectory-scroll]')) {
+                if (observedTrajectoryPanes.has(pane)) continue;
+                observedTrajectoryPanes.add(pane);
+                watchTrajectoryIntent(pane);
+                cancelTrajectoryFollow();
+                for (const delay of TRAJECTORY_SETTLE_MS) {
+                  trajectoryTimers.push(window.setTimeout(followTrajectoryTails, delay));
+                }
+              }
+            })
+          : null;
+      trajectoryObserver?.observe(doc.body ?? documentElement, { childList: true, subtree: true });
+
       /** Style elements this pack owns, so disposal removes exactly them. */
       const injectedStyles = [];
       /**
@@ -569,8 +698,17 @@ window.__ModuleLoader__.load({
       // any property that is neither provided nor declared in `inject`
       // (cordis/lib/index.js: `cannot get property "..." without inject`).
       // Listing `styles` in `inject` would leave the plugin `pending` forever.
+      const documentElement = doc.documentElement;
+      const body = doc.body;
+
+      // The font guard applies only where the platform zooms on focus; the flag it
+      // hangs on is decided here rather than in CSS, which cannot tell a phone from
+      // a touch-screen laptop.
+      const guardFont = switches.font && focusZoomGuardNeeded();
+      if (guardFont) documentElement.setAttribute(GUARD_FONT_ATTRIBUTE, '');
+
       if (switches.layout) addStyles(LAYOUT_STYLES);
-      if (switches.keyboard && switches.font) addStyles(ZOOM_GUARD_STYLES);
+      if (guardFont) addStyles(ZOOM_GUARD_STYLES);
       const lockElement = doc.createElement('style');
       lockElement.textContent = LOCK_STYLES;
       // The scroll lock is appended and removed with the keyboard; a <style>
@@ -584,8 +722,6 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const documentElement = doc.documentElement;
-      const body = doc.body;
       /**
        * Inline styles this module overwrites, so disposal restores them exactly.
        *
@@ -1035,6 +1171,13 @@ window.__ModuleLoader__.load({
         }
         hud?.remove();
         lockElement.remove();
+        documentElement.removeAttribute(GUARD_FONT_ATTRIBUTE);
+        cancelTrajectoryFollow();
+        trajectoryObserver?.disconnect();
+        for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
+          const watched = abandonedTrajectoryPanes.get(pane);
+          if (watched !== undefined) pane.removeEventListener('scroll', watched.onScroll);
+        }
         if (window.__dshMobileUx === api) delete window.__dshMobileUx;
       };
     }

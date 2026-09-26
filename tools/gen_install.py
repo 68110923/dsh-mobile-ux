@@ -251,6 +251,10 @@ A(f'''      <section id="switches">
                 <td data-zh="整包临时停用（不改安装状态）" data-en="Disable the whole pack for that page load, without uninstalling">整包临时停用（不改安装状态）</td></tr>
               <tr><td><code>?dshMobileUx=notap</code></td>
                 <td data-zh="只关「单击切换会话」，保留其余两节" data-en="Keep everything except single-tap session switching">只关「单击切换会话」，保留其余两节</td></tr>
+              <tr><td><code>?dshMobileUx=notrajectory</code></td>
+                <td data-zh="关掉「轨迹打开即到最新」" data-en="Turn off the trajectory auto-scroll">关掉「轨迹打开即到最新」</td></tr>
+              <tr><td><code>?dshMobileUx=nofont</code></td>
+                <td data-zh="不做字号提升（关掉防聚焦缩放）" data-en="Skip the font-size raise (the focus-zoom guard)">不做字号提升（关掉防聚焦缩放）</td></tr>
             </tbody>
           </table>
         </div>
@@ -396,5 +400,5 @@ html = f'''<!doctype html>
 </html>
 '''
 
-open(OUT, 'w', encoding='utf-8').write(html)
+OUT.write_text(html, encoding='utf-8')
 print('install.html written:', len(html), 'bytes')

@@ -37,7 +37,7 @@ function check(name, actual, expected) {
  * @param {{ search?: string, viewport?: object|null, innerHeight?: number }} options
  */
 function load(options = {}) {
-  const { search = '', innerHeight = 665 } = options;
+  const { search = '', innerHeight = 665, userAgent = 'iPhone', maxTouchPoints = 5 } = options;
   const listeners = new Map();
   const timers = [];
 
@@ -76,6 +76,17 @@ function load(options = {}) {
       },
       parentNode: null,
       parentElement: null,
+      eventListeners: new Map(),
+      addEventListener(type, fn) {
+        element.eventListeners.set(type, fn);
+      },
+      removeEventListener(type) {
+        element.eventListeners.delete(type);
+      },
+      /** Fires a registered listener, for tests that simulate a gesture. */
+      fire(type) {
+        element.eventListeners.get(type)?.();
+      },
       append(child) {
         child.parentNode = element;
         child.parentElement = element;
@@ -102,6 +113,12 @@ function load(options = {}) {
       },
       setAttribute(name, value) {
         element.attributes[name] = String(value);
+      },
+      removeAttribute(name) {
+        delete element.attributes[name];
+      },
+      hasAttribute(name) {
+        return Object.prototype.hasOwnProperty.call(element.attributes, name);
       },
       getAttribute(name) {
         return element.attributes[name] ?? null;
@@ -225,13 +242,23 @@ function load(options = {}) {
     },
   };
 
+  let observedCallback = null;
+  class MutationObserver {
+    constructor(callback) {
+      observedCallback = callback;
+    }
+    observe() {}
+    disconnect() {}
+  }
+
   let registration = null;
   const sandbox = {
     window: win,
     document,
     Element,
     MouseEvent,
-    navigator: { userAgent: 'iPhone' },
+    MutationObserver,
+    navigator: { userAgent, maxTouchPoints },
     URL,
     Math,
     JSON,
@@ -277,6 +304,10 @@ function load(options = {}) {
     document,
     makeElement,
     makeEditable,
+    get trajectoryObserverCallback() {
+      return observedCallback;
+    },
+    timers,
     root,
     documentElement,
     body,
@@ -471,6 +502,71 @@ console.log('dsh-mobile-ux: client logic');
 {
   const env = load({ search: '?dshMobileUx=notap' });
   check('notap: no tap listener installed', env.listeners.has('win:pointerup'), false);
+  env.dispose();
+}
+
+// 10. §2 font guard: only where the platform zooms on focus.
+{
+  const ZH = 'data-dsh-mux-guard-font';
+  const cases = [
+    ['iPhone', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', maxTouchPoints: 5 }, true],
+    ['iPad (desktop UA)', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', maxTouchPoints: 5 }, true],
+    ['Android Chrome', { userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile', maxTouchPoints: 5 }, true],
+    ['touch-screen laptop', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120', maxTouchPoints: 10 }, false],
+    ['plain desktop', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120', maxTouchPoints: 0 }, false],
+  ];
+  for (const [label, options, expected] of cases) {
+    const env = load(options);
+    const attrSet = Object.prototype.hasOwnProperty.call(env.documentElement.attributes, ZH);
+    check(`font guard on ${label}`, attrSet, expected);
+    const ruleInjected = env.attached().some((css) => css.includes('data-dsh-mux-guard-font'));
+    check(`font rule injected on ${label}`, ruleInjected, expected);
+    env.dispose();
+    check(`font guard removed on dispose (${label})`, Object.prototype.hasOwnProperty.call(env.documentElement.attributes, ZH), false);
+  }
+}
+
+// 11. §4: the trajectory pane is followed to its tail, but never against the reader.
+{
+  const env = load();
+  const pane = env.makeElement('div');
+  pane.setAttribute('data-trajectory-scroll', '');
+  pane.scrollHeight = 5000;
+  pane.clientHeight = 600;
+  pane.scrollTop = 1800;                       // parked mid-history, like the bug
+  let lastRowScrolledIntoView = 0;
+  const row = env.makeElement('tr');
+  row.setAttribute('data-record-index', '41');
+  row.scrollIntoView = () => {
+    lastRowScrolledIntoView += 1;
+    pane.scrollTop = pane.scrollHeight;        // the browser would land at the tail
+  };
+  pane.querySelectorAll = (selector) => (selector.includes('tr') ? [row] : []);
+  // The observer's fast-path guard uses querySelector, the scan uses querySelectorAll.
+  env.document.querySelector = (selector) => (selector.includes('trajectory') ? pane : null);
+  env.document.querySelectorAll = (selector) =>
+    selector.includes('trajectory') ? [pane] : [];
+
+  const open = env.trajectoryObserverCallback;
+  check('trajectory: observer wired', typeof open, 'function');
+  open();
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: tail is followed', lastRowScrolledIntoView > 0, true);
+  check('trajectory: pane ends at the bottom', pane.scrollTop, pane.scrollHeight);
+
+  // The reader scrolls up: the pack must stop following. A real scroll fires an
+  // event, which is exactly what the intent watcher listens for.
+  const before = lastRowScrolledIntoView;
+  pane.scrollTop = 0;
+  pane.fire('scroll');
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: scrolling up is respected', lastRowScrolledIntoView, before);
+  env.dispose();
+}
+// 12. §4 can be switched off.
+{
+  const env = load({ search: '?dshMobileUx=notrajectory' });
+  check('notrajectory: no observer', env.trajectoryObserverCallback, null);
   env.dispose();
 }
 

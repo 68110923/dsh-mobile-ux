@@ -10,6 +10,13 @@
 
 ---
 
+### §4 轨迹面板打开即到最新
+
+点「轨迹」时，面板会**自己滚到最新一条**。轨迹表是虚拟列表，行高要挂载后才稳定，产品内置的那一次"滚到底"经常落在中间，之后再没人纠正——于是你得往下翻半天。
+
+实现按**意图**而不是按距离判断：面板出现后的 60/200/500/1000ms 各补一次到底（虚拟列表通过锚定最后一行），一旦检测到你**主动上滑**就立刻停手。上滑是要读历史，跟你抢滚动比原来的 bug 更糟。
+
+
 ## 安装（一条命令）
 
 ```bash
@@ -88,7 +95,7 @@ DSH 的 Web 壳层是桌面优先的。在手机上用它，会依次撞到这�
 ## 安装
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-mobile-ux
+dsh plugin --profile web add github:68110923/dsh-mobile-ux
 ```
 
 然后重启并按 Ctrl/Cmd + Shift + R 硬刷新：
@@ -109,6 +116,7 @@ systemctl restart dsh-web     # 或你的 dsh web 进程
 | `layout` / `keyboard` / `tap` | **只**保留列出的这几节 |
 | `nolayout` / `nokeyboard` / `notap` | 关掉列出的这几节 |
 | `keepdrawer` | 单击切换后**不**自动收起侧边栏（默认会收起） |
+| `notrajectory` | 关掉「轨迹打开即到最新」 |
 | `nolock` | 键盘打开时不锁文档滚动 |
 | `nofont` | 不做字号提升（防缩放） |
 | `meta` | 额外把 `maximum-scale=1` 写进 viewport meta |
@@ -150,13 +158,14 @@ node --check client.js         # 语法
 ## 已知边界
 
 - 防聚焦缩放会**覆盖内容字号**：手机上编辑器固定 17px，"小号"档位对它不再生效。这是取舍——把字号调回 14px，缩放就回来了
+- 字号守卫**只对真的会缩放的平台生效**（iOS / Android Chrome）。早先用 `(pointer: coarse)` 判定，结果带触屏的笔记本（Windows 二合一、Chrome 设备模拟）输入框文字被无故放大；现在按平台判定，桌面与触屏笔记本都保持原字号。
 - §3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入
 - 插件不改任何产品源码，也不依赖服务端组件
 
 ## 安装来源说明
 
 - **从 GitHub 安装（推荐）**：`dsh plugin --profile web add github:68110923/dsh-mobile-ux`
-- **本地 / 离线**：`dsh plugin --profile web add /path/to/dsh-mobile-ux`（`link:` 语义，改完源码重启即生效）
+- **本地 / 离线**：`dsh plugin --profile web add /path/to/dsh-mobile-ux` —— 按目录安装是 `link:` 语义，改完源码重启即生效（上一条的 npm 方案未发布，见文末说明）
 - **npm**：尚未发布。发布者的 npm 账号启用的是安全密钥型 2FA（Auth & Writes），而构建服务器没有 TOTP 验证器，npm 要求发布必须提供 OTP 或可绕过 2FA 的 token，三种写法实测均被 registry 拒绝。使用者不受影响——GitHub 安装拿到的是同一个包，已逐字节比对。将来要发 npm，走 GitHub Actions + Trusted Publishing（OIDC）即可完全绕开 token 与 OTP。
 
 ## License
