@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>dsh-mobile-ux — DSH Web 手机端体验优化插件</title>
+    <title
+      data-zh="dsh-mobile-ux — DSH Web 手机端体验优化插件"
+      data-en="dsh-mobile-ux — a mobile UX pack for the DSH Web shell"
+    >dsh-mobile-ux — DSH Web 手机端体验优化插件</title>
     <meta
       name="description"
       content="DeepSeek Harness Web 壳层的手机端体验优化插件：窄屏布局修复、iOS 键盘与输入框跟随、侧边栏单击切换会话。纯客户端，桌面零回归。"
@@ -21,7 +24,6 @@
         --accent: #247bbf;
         --accent-soft: #eaf3fb;
         --code-bg: #f2f4f7;
-        --ok: #1a7f4b;
         --warn: #9a6b00;
         --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 8px 24px rgb(16 24 40 / 6%);
         --radius: 14px;
@@ -37,7 +39,6 @@
           --accent: #6cb6f0;
           --accent-soft: #16283a;
           --code-bg: #1b222b;
-          --ok: #4ac486;
           --warn: #e0b341;
           --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
         }
@@ -97,18 +98,57 @@
         height: 26px;
         flex: none;
       }
+      header.top .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: inherit;
+        min-width: 0;
+      }
+      header.top .brand:hover {
+        text-decoration: none;
+      }
       header.top .name {
         font-weight: 650;
         letter-spacing: 0.2px;
+        white-space: nowrap;
       }
       header.top nav {
         margin-left: auto;
         display: flex;
+        align-items: center;
         gap: 16px;
         font-size: 14px;
       }
       header.top nav a {
         color: var(--fg-soft);
+      }
+      /* Language switch: a two-state control, no dropdown and no page reload. */
+      .langs {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--bg-soft);
+      }
+      .langs button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--fg-soft);
+        font: inherit;
+        font-size: 13px;
+        padding: 3px 11px;
+        cursor: pointer;
+        line-height: 1.5;
+        /* The labels must never wrap: a two-line 中文 chip widened the whole
+           header on a 390px screen. */
+        white-space: nowrap;
+      }
+      .langs button[aria-pressed="true"] {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 650;
       }
       .hero {
         padding: 56px 0 8px;
@@ -234,11 +274,11 @@
         margin: 0;
         padding: 0;
       }
-      ol.steps li {
+      ol.steps > li {
         position: relative;
         padding: 0 0 18px 44px;
       }
-      ol.steps li::before {
+      ol.steps > li::before {
         counter-increment: step;
         content: counter(step);
         position: absolute;
@@ -254,9 +294,7 @@
         display: grid;
         place-items: center;
       }
-      /* Nested lists must not inherit the step counter: `.steps > li` matches
-         only direct children, but the counter would still be inherited visually
-         through the shared marker rule, so reset it explicitly. */
+      /* Nested lists must not pick up the step counter. */
       ol.steps ul {
         list-style: disc;
         margin: 8px 0 0;
@@ -300,6 +338,12 @@
         header.top nav a.opt {
           display: none;
         }
+        /* The wordmark cannot share a 390px header with the nav and the language
+           switch without breaking across three lines, so the icon carries the
+           brand on a phone. */
+        header.top .name {
+          display: none;
+        }
         .hero {
           padding-top: 36px;
         }
@@ -309,81 +353,96 @@
   <body>
     <header class="top">
       <div class="wrap">
-        <img src="./icon.svg" alt="" aria-hidden="true" />
-        <span class="name">dsh-mobile-ux</span>
+        <a class="brand" href="./" title="dsh-mobile-ux">
+          <img src="./icon.svg" alt="" aria-hidden="true" />
+          <span class="name">dsh-mobile-ux</span>
+        </a>
         <nav>
-          <a href="#install">安装</a>
-          <a href="#features">功能</a>
-          <a href="#switches">开关</a>
+          <a href="#install" data-zh="安装" data-en="Install">安装</a>
+          <a href="#features" data-zh="功能" data-en="Features">功能</a>
+          <a href="#switches" data-zh="开关" data-en="Switches">开关</a>
           <a class="opt" href="https://github.com/68110923/dsh-mobile-ux">GitHub</a>
+          <span class="langs" role="group" aria-label="Language / 语言">
+            <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+            <button type="button" data-lang="en" aria-pressed="false">EN</button>
+          </span>
         </nav>
       </div>
     </header>
 
     <main class="wrap">
       <div class="hero">
-        <h1>让 DeepSeek Harness 的 Web 界面在手机上真正好用</h1>
-        <p class="lead">
-          一个纯客户端插件，把窄屏布局、iOS 键盘与输入框跟随、侧边栏单击切换会话三件事一次补齐：不改壳层源码、桌面端零回归、每一节都能单独关掉。
-        </p>
+        <h1
+          data-zh="让 DeepSeek Harness 的 Web 界面在手机上真正好用"
+          data-en="Make the DeepSeek Harness web UI genuinely usable on a phone"
+        >让 DeepSeek Harness 的 Web 界面在手机上真正好用</h1>
+        <p
+          class="lead"
+          data-zh="一个纯客户端插件，把窄屏布局、iOS 键盘与输入框跟随、侧边栏单击切换会话三件事一次补齐：不改壳层源码、桌面端零回归、每一节都能单独关掉。"
+          data-en="One client-side plugin that fixes narrow-screen layout, iOS keyboard and composer tracking, and single-tap session switching: no shell source changes, no desktop regression, and every section can be switched off on its own."
+        >一个纯客户端插件，把窄屏布局、iOS 键盘与输入框跟随、侧边栏单击切换会话三件事一次补齐：不改壳层源码、桌面端零回归、每一节都能单独关掉。</p>
         <ul class="pills">
-          <li>纯客户端 · 无服务端组件</li>
-          <li>桌面 ≥ 1024px 零影响</li>
-          <li>iPhone + Safari 实测打磨</li>
+          <li data-zh="纯客户端 · 无服务端组件" data-en="Client-side only, no server component">纯客户端 · 无服务端组件</li>
+          <li data-zh="桌面 ≥ 1024px 零影响" data-en="Zero effect on desktop ≥ 1024px">桌面 ≥ 1024px 零影响</li>
+          <li data-zh="iPhone + Safari 实测打磨" data-en="Tuned against a real iPhone + Safari">iPhone + Safari 实测打磨</li>
           <li>MIT</li>
         </ul>
         <pre class="shell"><code>dsh plugin --profile web add /path/to/dsh-mobile-ux</code></pre>
-        <pre class="shell"><code><span class="c"># 改完插件必须重启，否则浏览器永远拿到旧代码（immutable 缓存）</span>
+        <pre class="shell"><code><span class="c" data-zh="# 改完插件必须重启，否则浏览器永远拿到旧代码（immutable 缓存）" data-en="# A plugin change needs a restart, or the browser keeps running the old code (immutable cache)"># 改完插件必须重启，否则浏览器永远拿到旧代码（immutable 缓存）</span>
 systemctl restart dsh-web</code></pre>
       </div>
 
       <section id="why">
-        <h2>它修的是七个具体问题</h2>
-        <p class="sub">全部来自真机使用，而不是"看起来可以更好"。</p>
+        <h2 data-zh="它修的是七个具体问题" data-en="Seven concrete problems it fixes">它修的是七个具体问题</h2>
+        <p
+          class="sub"
+          data-zh="全部来自真机使用，而不是“看起来可以更好”。"
+          data-en="All of them came from actually using this on a phone, not from taste."
+        >全部来自真机使用，而不是“看起来可以更好”。</p>
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>现象</th>
-                <th>根因</th>
+                <th data-zh="现象" data-en="Symptom">现象</th>
+                <th data-zh="根因" data-en="Root cause">根因</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>1</td>
-                <td>设置弹窗被压成一条缝、导航标签挤成一列</td>
-                <td>壳层没有 &lt; 768px 的手机档</td>
+                <td data-zh="设置弹窗被压成一条缝、导航标签挤成一列" data-en="The settings dialog is squeezed to a sliver and its tabs stack into a column">设置弹窗被压成一条缝、导航标签挤成一列</td>
+                <td data-zh="壳层没有 &lt; 768px 的手机档" data-en="The shell has no phone tier below 768px">壳层没有 &lt; 768px 的手机档</td>
               </tr>
               <tr>
                 <td>2</td>
-                <td>输入框底部按钮折行、互相叠住</td>
-                <td>composer 按桌面宽度排版</td>
+                <td data-zh="输入框底部按钮折行、互相叠住" data-en="Composer buttons wrap and overlap each other">输入框底部按钮折行、互相叠住</td>
+                <td data-zh="composer 按桌面宽度排版" data-en="The composer is laid out for a desktop width">composer 按桌面宽度排版</td>
               </tr>
               <tr>
                 <td>3</td>
-                <td>侧边栏一展开就把对话区挤到约 110px 宽</td>
-                <td>侧边栏是栅格列，不浮层</td>
+                <td data-zh="侧边栏一展开就把对话区挤到约 110px 宽" data-en="Opening the sidebar squeezes the conversation to roughly 110px">侧边栏一展开就把对话区挤到约 110px 宽</td>
+                <td data-zh="侧边栏是栅格列，不浮层" data-en="The sidebar is a grid column rather than an overlay">侧边栏是栅格列，不浮层</td>
               </tr>
               <tr>
                 <td>4</td>
-                <td><strong>点输入框整页被放大，输入框看不见</strong></td>
-                <td>编辑器 14px；iOS 对"聚焦时字号 &lt; 16px"的可编辑元素强制缩放整页</td>
+                <td data-zh="点输入框整页被放大，输入框看不见" data-en="Tapping the composer zooms the whole page and hides the input">点输入框整页被放大，输入框看不见</td>
+                <td data-zh="编辑器 14px；iOS 对“聚焦时字号 &lt; 16px”的可编辑元素强制缩放整页" data-en="The editor renders at 14px, and iOS zooms the page for any focused editable under 16px">编辑器 14px；iOS 对“聚焦时字号 &lt; 16px”的可编辑元素强制缩放整页</td>
               </tr>
               <tr>
                 <td>5</td>
-                <td><strong>打字/回撤后输入框掉到键盘后面</strong></td>
-                <td>外壳高度 = 布局视口，而键盘是覆盖层只缩小视觉视口；页面因此可滚，浏览器把输入框滚出可视区</td>
+                <td data-zh="打字/回撤后输入框掉到键盘后面" data-en="After typing or a backspace the composer drops behind the keyboard">打字/回撤后输入框掉到键盘后面</td>
+                <td data-zh="外壳高度 = 布局视口，而键盘是覆盖层只缩小视觉视口；页面因此可滚，浏览器把输入框滚出可视区" data-en="The shell is as tall as the layout viewport, but an overlay keyboard only shrinks the visual viewport; the page becomes scrollable and the browser scrolls the composer away">外壳高度 = 布局视口，而键盘是覆盖层只缩小视觉视口；页面因此可滚，浏览器把输入框滚出可视区</td>
               </tr>
               <tr>
                 <td>6</td>
-                <td>键盘收起后，输入框和键盘之间留一段空白</td>
-                <td>键盘动画结束前测到的高度是过期值，之后再没有事件纠正</td>
+                <td data-zh="键盘收起后，输入框和键盘之间留一段空白" data-en="A band of empty space is left between the composer and the keyboard">键盘收起后，输入框和键盘之间留一段空白</td>
+                <td data-zh="键盘动画结束前测到的高度是过期值，之后再没有事件纠正" data-en="The height is measured before the keyboard animation settles and no later event corrects it">键盘动画结束前测到的高度是过期值，之后再没有事件纠正</td>
               </tr>
               <tr>
                 <td>7</td>
-                <td><strong>切换会话要点两次，且不能快速双击</strong></td>
-                <td>行是单击打开，但"重命名"挂在行内标题的双击上；第二次点击被判定成双击</td>
+                <td data-zh="切换会话要点两次，且不能快速双击" data-en="Switching sessions needs two taps, and a fast double tap renames instead">切换会话要点两次，且不能快速双击</td>
+                <td data-zh="行是单击打开，但“重命名”挂在行内标题的双击上；第二次点击被判定成双击" data-en="The row opens on click, but rename hangs off a double click on the title inside it, so the second tap reads as a double click">行是单击打开，但“重命名”挂在行内标题的双击上；第二次点击被判定成双击</td>
               </tr>
             </tbody>
           </table>
@@ -391,143 +450,161 @@ systemctl restart dsh-web</code></pre>
       </section>
 
       <section id="features">
-        <h2>三个能力</h2>
-        <p class="sub">分节实现、分节开关，手机是唯一能判断它们好坏的地方。</p>
+        <h2 data-zh="三个能力" data-en="Three capabilities">三个能力</h2>
+        <p
+          class="sub"
+          data-zh="分节实现、分节开关，手机是唯一能判断它们好坏的地方。"
+          data-en="Built and switched section by section: a phone is the only place any of it can be judged."
+        >分节实现、分节开关，手机是唯一能判断它们好坏的地方。</p>
         <div class="cards">
           <div class="card">
-            <h3>§1 窄屏布局</h3>
-            <p class="scope">≤ 700px 媒体查询</p>
+            <h3 data-zh="§1 窄屏布局" data-en="§1 Narrow-screen layout">§1 窄屏布局</h3>
+            <p class="scope" data-zh="≤ 700px 媒体查询" data-en="≤ 700px media query">≤ 700px 媒体查询</p>
             <ul>
-              <li>设置弹窗全屏纵向，导航变一行可横滑的标签</li>
-              <li>输入框底栏不换行：工具区可压缩、发送键不压缩</li>
-              <li><strong>侧边栏浮在对话之上</strong>，栅格始终保留 56px 轨道</li>
-              <li>点抽屉外部收起</li>
+              <li data-zh="设置弹窗全屏纵向，导航变一行可横滑的标签" data-en="Settings becomes a full-screen column with a horizontally scrollable tab row">设置弹窗全屏纵向，导航变一行可横滑的标签</li>
+              <li data-zh="输入框底栏不换行：工具区可压缩、发送键不压缩" data-en="The composer bar stops wrapping: the tool cluster shrinks, the send button does not">输入框底栏不换行：工具区可压缩、发送键不压缩</li>
+              <li data-zh="侧边栏浮在对话之上，栅格始终保留 56px 轨道" data-en="The sidebar floats over the conversation while the grid keeps its 56px rail">侧边栏浮在对话之上，栅格始终保留 56px 轨道</li>
+              <li data-zh="点抽屉外部收起" data-en="Tapping outside the drawer collapses it">点抽屉外部收起</li>
             </ul>
           </div>
           <div class="card">
-            <h3>§2 iOS 键盘与可视视口</h3>
-            <p class="scope">触屏 + 聚焦可编辑元素时</p>
+            <h3 data-zh="§2 iOS 键盘与可视视口" data-en="§2 iOS keyboard and visual viewport">§2 iOS 键盘与可视视口</h3>
+            <p class="scope" data-zh="触屏 + 聚焦可编辑元素时" data-en="Touch surfaces, while an editable is focused">触屏 + 聚焦可编辑元素时</p>
             <ul>
-              <li><strong>防聚焦缩放</strong>：可编辑元素字号提到 17px，且写在样式表里——iOS 在焦点转移那一刻就决定缩放，写在 focus 处理器里对首次点击已经太晚</li>
-              <li><strong>输入框跟随键盘</strong>：外壳高度钉到 <code>visualViewport.height</code>，只向下取整（高 1px 就会让文档重新可滚）</li>
-              <li>键盘期间锁住文档滚动</li>
-              <li>键盘落定后补测几次，消掉空白带</li>
+              <li data-zh="防聚焦缩放：可编辑元素字号提到 17px，且写在样式表里——iOS 在焦点转移那一刻就决定缩放，写在 focus 处理器里对首次点击已经太晚" data-en="Focus-zoom guard: editables are raised to 17px in a stylesheet — iOS decides whether to zoom the moment focus moves, so writing it in a focus handler is already too late for the first tap">防聚焦缩放：可编辑元素字号提到 17px，且写在样式表里</li>
+              <li data-zh="输入框跟随键盘：外壳高度钉到 visualViewport.height，只向下取整（高 1px 就会让文档重新可滚）" data-en="Composer tracks the keyboard: the shell is pinned to visualViewport.height and always floored, since one extra pixel makes the document scrollable again">输入框跟随键盘：外壳高度钉到 visualViewport.height，只向下取整</li>
+              <li data-zh="键盘期间锁住文档滚动" data-en="The document is scroll-locked while the keyboard is up">键盘期间锁住文档滚动</li>
+              <li data-zh="键盘落定后补测几次，消掉空白带" data-en="A few follow-up measurements after the keyboard settles remove the empty band">键盘落定后补测几次，消掉空白带</li>
             </ul>
           </div>
           <div class="card">
-            <h3>§3 单击切换会话</h3>
-            <p class="scope">触屏 + 窄屏，桌面双击重命名照旧</p>
+            <h3 data-zh="§3 单击切换会话" data-en="§3 Single-tap session switching">§3 单击切换会话</h3>
+            <p class="scope" data-zh="触屏 + 窄屏；桌面双击重命名照旧" data-en="Touch + narrow screens; desktop double-click rename is untouched">触屏 + 窄屏；桌面双击重命名照旧</p>
             <ul>
-              <li><strong>单击即切换</strong>，不等双击判定窗口</li>
-              <li><strong>切完自动收起抽屉</strong>（点抽屉自己的开合按钮，走壳层真实路径）</li>
-              <li>600ms 内吞掉双击，不再误触发重命名</li>
-              <li>复用产品的打开逻辑，不重写会话语义</li>
+              <li data-zh="单击即切换，不等双击判定窗口" data-en="One tap switches immediately, without waiting out a double-tap window">单击即切换，不等双击判定窗口</li>
+              <li data-zh="切完自动收起抽屉（点抽屉自己的开合按钮，走壳层真实路径）" data-en="The drawer collapses afterwards, by pressing its own toggle button so the shell's real code path runs">切完自动收起抽屉（点抽屉自己的开合按钮）</li>
+              <li data-zh="600ms 内吞掉双击，不再误触发重命名" data-en="A double click inside 600ms is swallowed, so rename no longer fires by accident">600ms 内吞掉双击，不再误触发重命名</li>
+              <li data-zh="复用产品的打开逻辑，不重写会话语义" data-en="It reuses the product's own open handler instead of reimplementing session semantics">复用产品的打开逻辑，不重写会话语义</li>
             </ul>
           </div>
         </div>
       </section>
 
       <section id="install">
-        <h2>安装与验证</h2>
-        <p class="sub">需要 Node ≥ 22 与一个 DSH Web profile。</p>
+        <h2 data-zh="安装与验证" data-en="Install and verify">安装与验证</h2>
+        <p class="sub" data-zh="需要 Node ≥ 22 与一个 DSH Web profile。" data-en="Requires Node ≥ 22 and a DSH web profile.">需要 Node ≥ 22 与一个 DSH Web profile。</p>
         <ol class="steps">
           <li>
-            装进 profile：
+            <span data-zh="装进 profile：" data-en="Install into the profile:">装进 profile：</span>
             <pre class="shell"><code>dsh plugin --profile web add /path/to/dsh-mobile-ux</code></pre>
           </li>
           <li>
-            重启服务：
-            <pre class="shell"><code>systemctl restart dsh-web   <span class="c"># 或你的 dsh web 进程</span></code></pre>
+            <span data-zh="重启服务：" data-en="Restart the service:">重启服务：</span>
+            <pre class="shell"><code>systemctl restart dsh-web   <span class="c" data-zh="# 或你的 dsh web 进程" data-en="# or your own dsh web process"># 或你的 dsh web 进程</span></code></pre>
           </li>
           <li>
-            手机上<strong>强制刷新</strong>页面（Safari 下拉刷新），然后依次验证：
+            <span
+              data-zh="手机上强制刷新页面（Safari 下拉刷新），然后依次验证："
+              data-en="Hard-refresh the page on the phone (pull to refresh in Safari), then check each item:"
+            >手机上强制刷新页面（Safari 下拉刷新），然后依次验证：</span>
             <ul>
-              <li>点左上角图标展开侧边栏 → 应该是<strong>浮层抽屉</strong>，点空白处收起</li>
-              <li>输入框底部按钮<strong>保持一行</strong>，不折行不叠层</li>
-              <li>设置面板<strong>全屏纵向</strong>、标签可横滑</li>
-              <li>点输入框 → <strong>页面不放大</strong>；打字/回撤 → <strong>输入框不掉下去</strong></li>
-              <li>点一个未选中的会话 → <strong>一次点击就切换，且抽屉自动收起</strong></li>
+              <li data-zh="点左上角图标展开侧边栏 → 应该是浮层抽屉，点空白处收起" data-en="Tap the top-left icon: the sidebar should float over the conversation, and tapping outside collapses it">点左上角图标展开侧边栏 → 应该是浮层抽屉，点空白处收起</li>
+              <li data-zh="输入框底部按钮保持一行，不折行不叠层" data-en="The composer buttons stay on one row, with no wrapping or overlap">输入框底部按钮保持一行，不折行不叠层</li>
+              <li data-zh="设置面板全屏纵向、标签可横滑" data-en="Settings opens as a full-screen column with scrollable tabs">设置面板全屏纵向、标签可横滑</li>
+              <li data-zh="点输入框 → 页面不放大；打字/回撤 → 输入框不掉下去" data-en="Tap the composer: the page must not zoom. Type or backspace: the composer must not drop">点输入框 → 页面不放大；打字/回撤 → 输入框不掉下去</li>
+              <li data-zh="点一个未选中的会话 → 一次点击就切换，且抽屉自动收起" data-en="Tap an unselected session: one tap switches to it and the drawer collapses">点一个未选中的会话 → 一次点击就切换，且抽屉自动收起</li>
             </ul>
           </li>
         </ol>
         <p class="note">
-          <strong>为什么必须重启：</strong>DSH 用文件的 mtime/ctime/size 算 bundle 版本号，响应头又是
-          <code>immutable</code> 一年缓存。不重启的话，磁盘上改了、服务端也返回新内容，浏览器却仍然执行旧代码——这一条曾让人误判过好几次。
+          <strong data-zh="为什么必须重启：" data-en="Why the restart is mandatory:">为什么必须重启：</strong>
+          <span
+            data-zh="DSH 用文件的 mtime/ctime/size 算 bundle 版本号，响应头又是 immutable 一年缓存。不重启的话，磁盘上改了、服务端也返回新内容，浏览器却仍然执行旧代码——这一条曾让人误判过好几次。"
+            data-en="DSH derives each bundle revision from the file's mtime/ctime/size, and the response is cached as immutable for a year. Without a restart the file is new and the server serves it, yet the browser still runs the old code — a trap that has caused several wrong conclusions."
+          >DSH 用文件的 mtime/ctime/size 算 bundle 版本号，响应头又是 immutable 一年缓存。不重启的话，磁盘上改了、服务端也返回新内容，浏览器却仍然执行旧代码——这一条曾让人误判过好几次。</span>
         </p>
       </section>
 
       <section id="switches">
-        <h2>开关</h2>
-        <p class="sub">
-          URL 参数 <code>?dshMobileUx=</code> 后接逗号分隔的值；也可以加载前用
-          <code>window.__dshMobileUx = { keyboard: false }</code> 覆盖。
-        </p>
+        <h2 data-zh="开关" data-en="Switches">开关</h2>
+        <p
+          class="sub"
+          data-zh="URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUx = { keyboard: false } 覆盖。"
+          data-en="Append a comma-separated list to ?dshMobileUx=, or override before load with window.__dshMobileUx = { keyboard: false }."
+        >URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUx = { keyboard: false } 覆盖。</p>
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>值</th>
-                <th>作用</th>
+                <th data-zh="值" data-en="Value">值</th>
+                <th data-zh="作用" data-en="Effect">作用</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td><code>0</code> / <code>off</code></td><td>整包不生效</td></tr>
-              <tr><td><code>layout</code> / <code>keyboard</code> / <code>tap</code></td><td>只保留列出的这几节</td></tr>
-              <tr><td><code>nolayout</code> / <code>nokeyboard</code> / <code>notap</code></td><td>关掉列出的这几节</td></tr>
-              <tr><td><code>keepdrawer</code></td><td>单击切换后不自动收起侧边栏</td></tr>
-              <tr><td><code>nolock</code></td><td>键盘打开时不锁文档滚动</td></tr>
-              <tr><td><code>nofont</code></td><td>不做字号提升（防聚焦缩放）</td></tr>
-              <tr><td><code>meta</code></td><td>额外把 <code>maximum-scale=1</code> 写进 viewport meta（同时会禁掉双指缩放，默认关）</td></tr>
-              <tr><td><code>bottom</code></td><td>开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）</td></tr>
-              <tr><td><code>hud</code></td><td>左上角显示实时读数 <code>vvH / root / kb / lock / y / oT</code></td></tr>
+              <tr><td><code>0</code> / <code>off</code></td><td data-zh="整包不生效" data-en="Install nothing at all">整包不生效</td></tr>
+              <tr><td><code>layout</code> / <code>keyboard</code> / <code>tap</code></td><td data-zh="只保留列出的这几节" data-en="Keep only the listed sections">只保留列出的这几节</td></tr>
+              <tr><td><code>nolayout</code> / <code>nokeyboard</code> / <code>notap</code></td><td data-zh="关掉列出的这几节" data-en="Drop the listed sections">关掉列出的这几节</td></tr>
+              <tr><td><code>keepdrawer</code></td><td data-zh="单击切换后不自动收起侧边栏" data-en="Leave the drawer open after a tap">单击切换后不自动收起侧边栏</td></tr>
+              <tr><td><code>nolock</code></td><td data-zh="键盘打开时不锁文档滚动" data-en="Do not scroll-lock the document while the keyboard is up">键盘打开时不锁文档滚动</td></tr>
+              <tr><td><code>nofont</code></td><td data-zh="不做字号提升（防聚焦缩放）" data-en="Skip the font-size raise (the focus-zoom guard)">不做字号提升（防聚焦缩放）</td></tr>
+              <tr><td><code>meta</code></td><td data-zh="额外把 maximum-scale=1 写进 viewport meta（同时会禁掉双指缩放，默认关）" data-en="Also pin maximum-scale=1 in the viewport meta (this also disables pinch zoom, so it is off by default)">额外把 maximum-scale=1 写进 viewport meta（同时会禁掉双指缩放，默认关）</td></tr>
+              <tr><td><code>bottom</code></td><td data-zh="开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）" data-en="Enable visual-viewport pan compensation (off by default: it makes the shell taller than the visible area and leaves an empty band)">开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）</td></tr>
+              <tr><td><code>hud</code></td><td data-zh="左上角显示实时读数 vvH / root / kb / lock / y / oT" data-en="Show the live readout in the top-left corner: vvH / root / kb / lock / y / oT">左上角显示实时读数 vvH / root / kb / lock / y / oT</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
       <section id="credits">
-        <h2>参考项目与致谢</h2>
-        <p class="sub">§1 的样式与"点外部收起抽屉"源自上游，§2 是与真机一起磨出来的。</p>
+        <h2 data-zh="参考项目与致谢" data-en="Prior art and credits">参考项目与致谢</h2>
+        <p
+          class="sub"
+          data-zh="§1 的样式与“点外部收起抽屉”源自上游，§2 是与真机一起磨出来的。"
+          data-en="The §1 styles and the tap-outside-to-collapse behaviour come from upstream; §2 was ground out against a real phone."
+        >§1 的样式与“点外部收起抽屉”源自上游，§2 是与真机一起磨出来的。</p>
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>项目</th>
-                <th>用处</th>
+                <th data-zh="项目" data-en="Project">项目</th>
+                <th data-zh="用处" data-en="What it contributed">用处</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td><a href="https://github.com/AcidGr/dsh-web-mobile-fix">AcidGr/dsh-web-mobile-fix</a></td>
-                <td>§1 的原始实现（设置面板、浮层侧边栏、遮罩、点外部收起），MIT</td>
+                <td data-zh="§1 的原始实现（设置面板、浮层侧边栏、遮罩、点外部收起），MIT" data-en="The original §1 implementation (settings panel, floating sidebar, scrim, tap-outside collapse), MIT">§1 的原始实现（设置面板、浮层侧边栏、遮罩、点外部收起），MIT</td>
               </tr>
               <tr>
                 <td><a href="https://github.com/TecFancy/dsh-mobile">TecFancy/dsh-mobile</a></td>
-                <td>手机档适配的另一种做法（断点层 + 状态桥 + <code>data-slot</code> 样式表），参考了它的取舍，MIT</td>
+                <td data-zh="手机档适配的另一种做法（断点层 + 状态桥 + data-slot 样式表），参考了它的取舍，MIT" data-en="An alternative approach to the phone tier (breakpoint layer, state bridge, data-slot stylesheet); its trade-offs informed ours, MIT">手机档适配的另一种做法（断点层 + 状态桥 + data-slot 样式表），参考了它的取舍，MIT</td>
               </tr>
               <tr>
                 <td><a href="https://github.com/langyo/dsh-mobile-upgrade">langyo/dsh-mobile-upgrade</a></td>
-                <td>同类问题的另一种整理方式，安装与排错思路有参考</td>
+                <td data-zh="同类问题的另一种整理方式，安装与排错思路有参考" data-en="Another take on the same class of problems; useful on install and troubleshooting">同类问题的另一种整理方式，安装与排错思路有参考</td>
               </tr>
               <tr>
                 <td><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></td>
-                <td>被适配的壳层本体；插件只锚在它的 <code>data-slot</code> 与类名前缀契约上</td>
+                <td data-zh="被适配的壳层本体；插件只锚在它的 data-slot 与类名前缀契约上" data-en="The shell being adapted; the plugin anchors only on its data-slot and class-prefix contracts">被适配的壳层本体；插件只锚在它的 data-slot 与类名前缀契约上</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p class="note">
-          §1 的样式与 §3 的"点击外部收起侧边栏"逻辑直接源自 <code>dsh-web-mobile-fix</code>（MIT），本仓库在其基础上做了整合与修正；§2 没有上游可抄，结论全部来自这台设备上的实测。
+          <span
+            data-zh="§1 的样式与 §3 的“点击外部收起侧边栏”逻辑直接源自 dsh-web-mobile-fix（MIT），本仓库在其基础上做了整合与修正；§2 没有上游可抄，结论全部来自这台设备上的实测。"
+            data-en="The §1 styles and the §3 tap-outside collapse logic come directly from dsh-web-mobile-fix (MIT); this repo merges and corrects them. §2 had nothing to copy from — every constant in it comes from measurements on one device."
+          >§1 的样式与 §3 的“点击外部收起侧边栏”逻辑直接源自 dsh-web-mobile-fix（MIT），本仓库在其基础上做了整合与修正；§2 没有上游可抄，结论全部来自这台设备上的实测。</span>
         </p>
       </section>
 
       <section id="limits">
-        <h2>已知边界</h2>
+        <h2 data-zh="已知边界" data-en="Known limits">已知边界</h2>
         <ul>
-          <li>防聚焦缩放会<strong>覆盖内容字号</strong>：手机上编辑器固定 17px，"小号"档位对它不再生效。把字号调回 14px，缩放就回来——这是取舍。</li>
-          <li>§3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入。</li>
-          <li>选择器锚定产品的 <code>data-slot</code> 与 CSS Module 类名前缀，同版本线内稳定，<strong>产品大改版后可能需要小改</strong>。</li>
-          <li>不改任何产品源码，也不依赖服务端组件；卸载即完全可逆。</li>
+          <li data-zh="防聚焦缩放会覆盖内容字号：手机上编辑器固定 17px，“小号”档位对它不再生效。把字号调回 14px，缩放就回来——这是取舍。" data-en="The focus-zoom guard overrides the content font size: on a phone the editor is fixed at 17px, so the “small” setting no longer applies to it. Dropping back to 14px brings the zoom right back — a trade-off, not an oversight.">防聚焦缩放会覆盖内容字号：手机上编辑器固定 17px，“小号”档位对它不再生效。把字号调回 14px，缩放就回来——这是取舍。</li>
+          <li data-zh="§3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入。" data-en="§3 only handles the sidebar session list; search-result sessions use different markup and are not covered yet.">§3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入。</li>
+          <li data-zh="选择器锚定产品的 data-slot 与 CSS Module 类名前缀，同版本线内稳定，产品大改版后可能需要小改。" data-en="Selectors anchor on the product's data-slot attributes and CSS-Module class prefixes. Stable within a release line, but a major product revamp may need small updates.">选择器锚定产品的 data-slot 与 CSS Module 类名前缀，同版本线内稳定，产品大改版后可能需要小改。</li>
+          <li data-zh="不改任何产品源码，也不依赖服务端组件；卸载即完全可逆。" data-en="No product source is modified and no server component is required; removing the plugin is fully reversible.">不改任何产品源码，也不依赖服务端组件；卸载即完全可逆。</li>
         </ul>
       </section>
     </main>
@@ -535,12 +612,77 @@ systemctl restart dsh-web</code></pre>
     <footer>
       <div class="wrap">
         <p>
-          <a href="https://github.com/68110923/dsh-mobile-ux">GitHub 仓库</a> ·
-          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/README.md">完整 README</a> ·
+          <a href="https://github.com/68110923/dsh-mobile-ux" data-zh="GitHub 仓库" data-en="GitHub repository">GitHub 仓库</a> ·
+          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/README.md" data-zh="完整 README" data-en="Full README">完整 README</a> ·
           <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/LICENSE">MIT License</a>
         </p>
-        <p>为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。</p>
+        <p
+          data-zh="为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。"
+          data-en="Written for the DeepSeek Harness web profile and tuned against a real iPhone running Safari."
+        >为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。</p>
       </div>
     </footer>
+
+    <script>
+      /**
+       * Language switch.
+       *
+       * Every translatable node carries both texts as `data-zh` / `data-en`, so
+       * switching rewrites existing elements: no reload, no fetch, and no second
+       * copy of the markup that could drift out of sync. With JavaScript disabled
+       * the page renders the Chinese copy baked into the HTML, which also keeps
+       * the content readable without script.
+       */
+      (function () {
+        var root = document.documentElement;
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.langs button'));
+        var nodes = Array.prototype.slice.call(
+          document.querySelectorAll('[data-zh][data-en]'),
+        );
+
+        /**
+         * Applies one language to every tagged node.
+         *
+         * @param lang - 'zh' or 'en'.
+         */
+        function apply(lang) {
+          var key = lang === 'en' ? 'en' : 'zh';
+          root.setAttribute('lang', key === 'en' ? 'en' : 'zh-CN');
+          for (var i = 0; i < nodes.length; i += 1) {
+            var node = nodes[i];
+            var value = node.getAttribute('data-' + key);
+            if (value === null) continue;
+            if (node.tagName === 'TITLE') node.textContent = value;
+            else node.innerHTML = value;
+          }
+          for (var j = 0; j < buttons.length; j += 1) {
+            buttons[j].setAttribute(
+              'aria-pressed',
+              buttons[j].getAttribute('data-lang') === key ? 'true' : 'false',
+            );
+          }
+          try {
+            localStorage.setItem('dsh-mobile-ux:lang', key);
+          } catch (error) {
+            /* private mode: the choice simply does not persist */
+          }
+        }
+
+        for (var i = 0; i < buttons.length; i += 1) {
+          buttons[i].addEventListener('click', function (event) {
+            apply(event.currentTarget.getAttribute('data-lang'));
+          });
+        }
+
+        var stored = null;
+        try {
+          stored = localStorage.getItem('dsh-mobile-ux:lang');
+        } catch (error) {
+          stored = null;
+        }
+        if (stored === 'en' || stored === 'zh') apply(stored);
+        else if (!/^zh/i.test(navigator.language || '')) apply('en');
+      })();
+    </script>
   </body>
 </html>
