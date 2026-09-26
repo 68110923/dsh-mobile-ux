@@ -187,6 +187,80 @@
   })();
 
   /**
+   * The mobile drawer: one button for both page links and section links.
+   *
+   * The narrow layout shows neither the tab row nor the anchor strip, so the
+   * drawer's contents are cloned from them rather than authored twice — the menu
+   * and the strip stay the single source of truth, and there is nothing to keep
+   * in sync by hand. On a wider viewport the button and drawer are hidden by CSS
+   * and this does nothing.
+   */
+  (function mobileMenu() {
+    var toggle = document.querySelector('.menu-toggle');
+    var drawer = document.querySelector('.menu-drawer');
+    if (toggle === null || drawer === null) return;
+    var pagesList = drawer.querySelector('[data-menu-pages]');
+    var sectionsList = drawer.querySelector('[data-menu-sections]');
+
+    var normalise = function (link) {
+      var clone = link.cloneNode(true);
+      clone.removeAttribute('aria-current');
+      return clone;
+    };
+
+    var fill = function (list, from) {
+      if (list === null || from === null) return;
+      list.textContent = '';
+      var links = from.querySelectorAll('a[href]');
+      for (var i = 0; i < links.length; i += 1) {
+        var item = document.createElement('li');
+        item.appendChild(normalise(links[i]));
+        list.appendChild(item);
+      }
+    };
+
+    var open = function (wanted) {
+      toggle.setAttribute('aria-expanded', wanted ? 'true' : 'false');
+      drawer.hidden = !wanted;
+      document.body.classList.toggle('menu-open', wanted);
+    };
+
+    fill(pagesList, document.querySelector('header.top nav.pages'));
+    fill(sectionsList, document.querySelector('[data-anchors]'));
+    // A deep link straight into a section should read as current in the drawer.
+    var here = location.hash;
+    if (here.length > 1 && sectionsList !== null) {
+      var match = sectionsList.querySelector('a[href="' + here + '"]');
+      if (match !== null) match.setAttribute('aria-current', 'true');
+    }
+
+    toggle.addEventListener('click', function () {
+      open(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+    // Following a link is the end of the interaction; leave the drawer open and it
+    // covers the section the reader just asked for.
+    drawer.addEventListener('click', function (event) {
+      if (event.target instanceof Element && event.target.closest('a') !== null) open(false);
+    });
+    document.addEventListener('click', function (event) {
+      if (toggle.getAttribute('aria-expanded') !== 'true') return;
+      var target = event.target;
+      if (!(target instanceof Element)) return;
+      if (toggle.contains(target) || drawer.contains(target)) return;
+      open(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') open(false);
+    });
+    // Any resize closes the drawer: crossing the breakpoint would otherwise leave
+    // it marked open while CSS hides it, and that state keeps the page behind it
+    // unscrollable through the `menu-open` class.
+    window.addEventListener('resize', function () {
+      open(false);
+    });
+  })();
+
+  /**
    * Keeps the active anchor visible in the strip as the reader scrolls past the
    * sections. On desktop the strip is a vertical column, where `inline: center`
    * would scroll sideways for no reason, so the axis follows the layout.

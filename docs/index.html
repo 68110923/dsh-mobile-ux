@@ -27,11 +27,26 @@
             <button type="button" data-lang="zh" aria-pressed="true">中文</button>
             <button type="button" data-lang="en" aria-pressed="false">EN</button>
           </span>
+          <button
+            type="button"
+            class="menu-toggle"
+            aria-expanded="false"
+            aria-controls="site-menu"
+            data-i18n="menu.open"
+          >菜单</button>
         </span>
+      </div>
+      <div class="menu-drawer" id="site-menu" hidden>
+        <div class="menu-inner">
+          <p class="menu-group" data-i18n="menu.pages">页面</p>
+          <ul class="menu-pages" data-menu-pages></ul>
+          <p class="menu-group" data-i18n="menu.sections">本页</p>
+          <ul class="menu-sections" data-menu-sections></ul>
+        </div>
       </div>
     </header>
 
-    <nav class="anchors" aria-label="Sections / 本页导航">
+    <nav class="anchors" aria-label="Sections / 本页导航" data-anchors>
       <ul>
         <li><a href="#why" data-i18n="anchor.index.why">七个问题</a></li>
         <li><a href="#features" data-i18n="anchor.index.features">五个能力</a></li>

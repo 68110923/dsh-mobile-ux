@@ -747,18 +747,161 @@ footer .sep {
   color: var(--fg-faint);
 }
 
-/* ------------------------------------------------------------ desktop --- */
+/* ------------------------------------------------------- mobile menu ---- */
 
-/* Below 470px the brand, the page tabs and the language switch cannot share one
-   row without clipping the last tab, so the header becomes two rows: identity and
-   language on top, the page tabs as a strip underneath. Measured: at 430px the
-   menu needed 2-4px more than the row had, and at 320px it needed a second row
-   either way. Wrapping here keeps every page reachable on every phone. */
+/* Narrow screens keep the chrome in a single 54px row and put both the page
+   links and the section links behind one button. The arrangement this replaces
+   stacked a two-row header over a sticky anchor strip: measured at 132px of
+   chrome, 23% of an iPhone SE screen, with a horizontally scrolling pill row
+   that hid half its items and told the reader nothing about where they were.
+   The drawer is an overlay, so it costs no layout height at all.
+ *
+ * Order matters in this file: the base rules below `display: none` the button,
+ * and every media query that changes that comes after them. Putting a media
+ * query block above its base rule silently loses the override — which is
+ * exactly how the first version of this shipped a permanently hidden button. */
+.menu-toggle {
+  display: none;
+  appearance: none;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--fg-soft);
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 11px 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.menu-toggle::before {
+  content: "";
+  width: 13px;
+  height: 9px;
+  background:
+    linear-gradient(var(--fg-soft), var(--fg-soft)) 0 0 / 100% 1.5px no-repeat,
+    linear-gradient(var(--fg-soft), var(--fg-soft)) 0 50% / 100% 1.5px no-repeat,
+    linear-gradient(var(--fg-soft), var(--fg-soft)) 0 100% / 100% 1.5px no-repeat;
+}
+
+.menu-toggle[aria-expanded="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.menu-drawer {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 18px 28px rgb(16 24 40 / 12%);
+  max-height: min(76vh, 30rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menu-drawer[hidden] {
+  display: none;
+}
+
+/* Not `.wrap`: the drawer lives inside `header.top`, where `.wrap` is a flex row
+   for the brand and the controls, and reusing it here laid the group headings and
+   their links out side by side. */
+.menu-inner {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 12px calc(var(--gutter) + var(--safe-l)) 14px calc(var(--gutter) + var(--safe-r));
+}
+
+.menu-group {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.menu-drawer ul {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.menu-drawer li {
+  margin: 0 0 2px;
+}
+
+.menu-drawer li a {
+  display: block;
+  padding: 11px 12px;
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 15px;
+  /* Comfortably past the 44px touch-target minimum with the row padding. */
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.menu-drawer li a:hover {
+  background: var(--bg-soft);
+  text-decoration: none;
+}
+
+.menu-drawer li a[aria-current] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Body scroll must not continue underneath the open drawer. */
+body.menu-open {
+  overflow: hidden;
+}
+
+/* Phone: 560px and below — one row, drawer instead of tabs and anchor strip. */
+@media (max-width: 560px) {
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  /* The header must stay above its own drawer. */
+  header.top {
+    z-index: 40;
+  }
+
+  header.top .wrap {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  header.top nav.pages {
+    display: none;
+  }
+
+  header.top .navslot {
+    margin-left: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* The section links live in the drawer now; the strip itself would eat 47px
+     of every screen for a horizontal scroll that hides half its items. */
+  .anchors {
+    display: none;
+  }
+
+  section {
+    scroll-margin-top: calc(var(--header-h, 54px) + 8px);
+  }
+
+}
+
+/* Very narrow phones: the brand may wrap under the controls rather than push
+   them off the row. The tabs are already gone at this point, so this only has
+   to keep the language switch and the menu button reachable. */
 @media (max-width: 469px) {
   header.top .wrap {
-    flex-wrap: wrap;
-    padding-top: 7px;
-    padding-bottom: 0;
     row-gap: 0;
   }
 
@@ -766,25 +909,25 @@ footer .sep {
     gap: 8px;
   }
 
-  header.top nav.pages {
-    flex-basis: 100%;
-    order: 3;
-    margin-top: 6px;
-    padding-bottom: 6px;
-    border-top: 1px solid var(--border);
-    padding-top: 7px;
-    margin-left: calc(-1 * var(--gutter));
-    margin-right: calc(-1 * var(--gutter));
-    padding-left: var(--gutter);
-    padding-right: var(--gutter);
+  header.top .name {
+    font-size: 13.5px;
   }
-
 }
 
-/* Tablet (iPad portrait and up, and every desktop): the anchor strip stops being a
-   horizontal scroller and becomes a second column beside the text. On an iPad the
-   horizontal strip wastes a full row of height and is a long thumb travel to reach;
-   a column reads as a table of contents and keeps the reading measure intact. */
+/* 561px and up: the tabs fit inline again, so the drawer is gone and the anchor
+   strip becomes the section navigation — horizontal between 561 and 719px, then
+   the left column from 720px up (see the next block). */
+@media (min-width: 561px) {
+  .menu-toggle,
+  .menu-drawer {
+    display: none;
+  }
+
+  body.menu-open {
+    overflow: visible;
+  }
+}
+
 @media (min-width: 720px) {
   :root {
     --gutter: 22px;

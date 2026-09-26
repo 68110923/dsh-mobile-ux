@@ -155,7 +155,22 @@ def header(page, copy):
             <button type="button" data-lang="zh" aria-pressed="true">中文</button>
             <button type="button" data-lang="en" aria-pressed="false">EN</button>
           </span>
+          <button
+            type="button"
+            class="menu-toggle"
+            aria-expanded="false"
+            aria-controls="site-menu"
+            {copy.attrs('menu.open')}
+          >{copy('menu.open')}</button>
         </span>
+      </div>
+      <div class="menu-drawer" id="site-menu" hidden>
+        <div class="menu-inner">
+          <p class="menu-group" {copy.attrs('menu.pages')}>{copy('menu.pages')}</p>
+          <ul class="menu-pages" data-menu-pages></ul>
+          <p class="menu-group" {copy.attrs('menu.sections')}>{copy('menu.sections')}</p>
+          <ul class="menu-sections" data-menu-sections></ul>
+        </div>
       </div>
     </header>'''
 
@@ -168,7 +183,7 @@ def anchors(page, copy):
     )
     return f'''
 
-    <nav class="anchors" aria-label="{copy('nav.anchors_label')}">
+    <nav class="anchors" aria-label="{copy('nav.anchors_label')}" data-anchors>
       <ul>
 {items}
       </ul>
