@@ -146,7 +146,10 @@ function load(options = {}) {
     head,
     activeElement: null,
     getElementById: (id) => (id === 'root' ? root : null),
-    querySelector: (selector) => (selector.includes('viewport') ? null : null),
+    querySelector: () => null,
+    // §3 prefers the drawer's own toggle button over the layout service.
+    querySelectorAll: (selector) =>
+      selector.includes('button') ? [collapseButton] : [],
     createElement: makeElement,
     addEventListener(type, fn) {
       listeners.set(`doc:${type}`, fn);
@@ -204,6 +207,24 @@ function load(options = {}) {
     navigator: undefined,
   };
 
+  let sidebarToggles = 0;
+  let collapseButtonClicks = 0;
+  const collapseButton = {
+    tagName: 'BUTTON',
+    attributes: { 'aria-label': 'Collapse sidebar' },
+    getAttribute(name) {
+      return this.attributes[name] ?? null;
+    },
+    click() {
+      collapseButtonClicks += 1;
+    },
+  };
+  const layoutService = {
+    toggleSidebar() {
+      sidebarToggles += 1;
+    },
+  };
+
   let registration = null;
   const sandbox = {
     window: win,
@@ -237,8 +258,8 @@ function load(options = {}) {
       return callback();
     },
     get(name) {
-      // §1 looks the layout service up without declaring `inject`.
-      return name === 'layout' ? { toggleSidebar() {} } : undefined;
+      // §1 and §3 look the layout service up without declaring `inject`.
+      return name === 'layout' ? layoutService : undefined;
     },
   });
   const dispose = typeof result === 'function' ? result : () => {};
@@ -263,6 +284,8 @@ function load(options = {}) {
     dispose,
     listeners,
     timers,
+    sidebarToggles: () => sidebarToggles,
+    collapseButtonClicks: () => collapseButtonClicks,
     /** Style elements currently attached to <head>. */
     attached: () => head.children.map((child) => child.textContent.replace(/\s+/g, ' ').trim()),
   };
@@ -415,15 +438,36 @@ console.log('dsh-mobile-ux: client logic');
 
   tap('pointerup');
   check('tap: opens the session on the first tap', clicks, ['click']);
+  check('tap: collapses the drawer after switching', env.collapseButtonClicks(), 1);
   // Second tap inside the suppression window must be swallowed, not opened again.
   tap('pointerup');
   check('tap: a second fast tap does not open or rename', clicks, ['click']);
+  check('tap: the suppressed tap does not collapse again', env.collapseButtonClicks(), 1);
   // A key that belongs to a project row is not a session.
   rowKey = 'workspace:681f8e86';
   tap('pointerup');
   check('tap: workspace rows are ignored', clicks, ['click']);
 }
-// 8. Section switches gate the tap handler.
+// 8. `?dshMobileUx=keepdrawer` leaves the drawer open.
+{
+  const env = load({ search: '?dshMobileUx=keepdrawer' });
+  const row = env.makeElement('div');
+  row.setAttribute('role', 'treeitem');
+  const baseGet = row.getAttribute.bind(row);
+  row.getAttribute = (name) => {
+    if (name === 'data-row-key') return 'session:session-1';
+    if (name === 'aria-selected') return 'false';
+    return baseGet(name);
+  };
+  const title = env.makeElement('span');
+  title.className = 'Rows_title';
+  row.append(title);
+  row.dispatchEvent = () => true;
+  env.listeners.get('win:pointerup')?.({ target: title, preventDefault() {}, stopPropagation() {} });
+  check('keepdrawer: drawer is left open', env.collapseButtonClicks(), 0);
+  env.dispose();
+}
+// 9. Section switches gate the tap handler.
 {
   const env = load({ search: '?dshMobileUx=notap' });
   check('notap: no tap listener installed', env.listeners.has('win:pointerup'), false);

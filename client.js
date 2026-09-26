@@ -295,6 +295,9 @@ window.__ModuleLoader__.load({
         layout: pick('layout', true),
         keyboard: pick('keyboard', true),
         tap: pick('tap', true),
+        // `?dshMobileUx=keepdrawer` leaves the drawer open after a tap, for
+        // switching through several sessions in a row.
+        closeDrawer: pick('closeDrawer', true),
         hud: optIn('hud'),
         lock: pick('lock', true),
         font: pick('font', true),
@@ -852,6 +855,10 @@ window.__ModuleLoader__.load({
         }
         suppressRowTapUntil = Date.now() + TAP_RENAME_SUPPRESS_MS;
         row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        // Getting out of the way is part of switching: on a phone the drawer
+        // covers the conversation the tap just opened. Collapsing on the click
+        // frame (not after a delay) keeps it from being seen as a second gesture.
+        if (switches.closeDrawer) collapseSidebar();
         event.preventDefault();
       };
 
@@ -863,6 +870,33 @@ window.__ModuleLoader__.load({
         if (target.closest('[class*="_title"]') === null) return;
         event.stopPropagation();
         event.preventDefault();
+      };
+
+      /**
+       * Collapses the sidebar drawer.
+       *
+       * The drawer's own toggle button is preferred over the layout service: the
+       * button is the same control the user would press, it goes through the
+       * shell's real code path (including persisted state), and it still works
+       * when the service lookup is unavailable. The service is the fallback.
+       *
+       * @returns true when a collapse was requested.
+       */
+      const collapseSidebar = () => {
+        const toggle = [...document.querySelectorAll('button')].find(
+          (button) =>
+            /collapse sidebar|收起.*侧边栏|收起侧栏/i.test(button.getAttribute('aria-label') ?? '') ||
+            /collapse sidebar/i.test(button.getAttribute('title') ?? ''),
+        );
+        if (toggle !== undefined) {
+          toggle.click();
+          return true;
+        }
+        if (layoutService !== null && typeof layoutService.toggleSidebar === 'function') {
+          layoutService.toggleSidebar();
+          return true;
+        }
+        return false;
       };
 
       /**
@@ -897,10 +931,9 @@ window.__ModuleLoader__.load({
         ) {
           return;
         }
-        if (layoutService !== null && typeof layoutService.toggleSidebar === 'function') {
+        if (collapseSidebar()) {
           event.preventDefault();
           event.stopPropagation();
-          layoutService.toggleSidebar();
         }
       };
 

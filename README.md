@@ -41,9 +41,11 @@ DSH 的 Web 壳层是桌面优先的。在手机上用它，会依次撞到这�
 
 ### §3 单击切换会话
 
+- **单击即切换，并自动收起抽屉**：手机上抽屉盖着的正是刚打开的那个会话，切完就退开才顺手（想连续切换可以关掉，见开关表）
 - **单击即切换**，不必等双击判定窗口
 - **快速双击不再触发重命名**（原先的第二次点击会落进标题的双击手势里）
 - 实现方式：在 `pointerup` 捕获阶段先把这一行的 `onClick` 重新派发一次（**复用产品自己的打开逻辑，不重写会话语义**），随后 600ms 内吞掉同一行的 `dblclick`
+- 收起抽屉用的是**抽屉自己的开合按钮**（`aria-label="Collapse sidebar"`），也就是用户本来会按的那个控件，走壳层真实代码路径；服务查找只作兜底
 - 只在粗指针设备 + 窄屏生效，**桌面端双击重命名照旧**
 - 项目/工作区分组行（`data-row-key` 形如 `project:…`）不参与，避免误判
 
@@ -70,6 +72,7 @@ systemctl restart dsh-web     # 或你的 dsh web 进程
 | `0` / `off` | 整包不生效 |
 | `layout` / `keyboard` / `tap` | **只**保留列出的这几节 |
 | `nolayout` / `nokeyboard` / `notap` | 关掉列出的这几节 |
+| `keepdrawer` | 单击切换后**不**自动收起侧边栏（默认会收起） |
 | `nolock` | 键盘打开时不锁文档滚动 |
 | `nofont` | 不做字号提升（防缩放） |
 | `meta` | 额外把 `maximum-scale=1` 写进 viewport meta |
@@ -85,7 +88,7 @@ systemctl restart dsh-web     # 或你的 dsh web 进程
 ## 开发与验证
 
 ```bash
-node tools/client.test.mjs     # 25 项纯逻辑断言
+node tools/client.test.mjs     # 28 项纯逻辑断言
 node --check client.js         # 语法
 ```
 
