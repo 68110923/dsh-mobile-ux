@@ -140,7 +140,7 @@ node --check client.js         # 语法
 
 - 从 GitHub 安装（推荐）：`dsh plugin --profile web add github:68110923/dsh-mobile-ux`
 - 本地 / 离线：`dsh plugin --profile web add /path/to/dsh-mobile-ux`（`link:` 语义，改完源码重启即生效）
-- 包名目前是 `@local/mobile-keyboard-viewport`，`@local` 只是历史遗留的本地作用域名，不影响安装；发布到 npm 前需要改成自己的作用域并去掉 `private`
+- npm 包名：`@68110923/dsh-mobile-ux`（发到 npm 后 `dsh plugin --profile web add @68110923/dsh-mobile-ux` 即可，装的速度比走 GitHub 快）
 
 ## License
 

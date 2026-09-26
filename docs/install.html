@@ -56,7 +56,7 @@
           <li data-zh="纯客户端 · 无构建" data-en="client-side only · no build">纯客户端 · 无构建</li>
           <li>MIT</li>
         </ul>
-        <pre class="shell"><code><span class="tok-cmd">dsh</span> plugin --profile web add github:68110923/dsh-mobile-ux</code></pre>
+        <pre class="shell"><code><span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux</code></pre>
       </div>
       <section id="req">
         <h2 data-zh="开始之前" data-en="Before you start">开始之前</h2>
@@ -85,21 +85,17 @@
         </div>
       </section>
       <section id="github">
-        <h2 data-zh="方案 A：直接从 GitHub 安装（推荐）" data-en="Method A: install straight from GitHub (recommended)">方案 A：直接从 GitHub 安装（推荐）</h2>
-        <p class="sub" data-zh="不需要发布到 npm，也不需要手动拷文件。已实测走通。"
-           data-en="No npm publish and no manual copying required. Verified end to end.">不需要发布到 npm，也不需要手动拷文件。已实测走通。</p>
+        <h2 data-zh="方案 A：直接从 GitHub 安装" data-en="Method A: install straight from GitHub">方案 A：直接从 GitHub 安装</h2>
+        <p class="sub" data-zh="与 npm 等价，适合想跟 main 分支、或不走 registry 的环境。已实测走通。"
+           data-en="Equivalent to the npm route, and the one to use when you want to follow main or cannot reach a registry. Verified end to end.">不需要发布到 npm，也不需要手动拷文件。已实测走通。</p>
         <div class="plan">
           <header><span class="num">1</span>
             <h3 data-zh="一条命令装进 profile" data-en="Install it into the profile">一条命令装进 profile</h3>
             <span class="badge">github:</span>
           </header>
           <div class="body">
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"><span data-zh="你的电脑" data-en="your machine">你的电脑</span></span><span class="chip">pnpm</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add github:68110923/dsh-mobile-ux</code></pre></div>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"><span data-zh="你的电脑" data-en="your machine">你的电脑</span></span><span class="chip">pnpm</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux</code></pre></div>
             <ul class="plain"><li><span data-zh="pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles" data-en="pnpm fetches the repo and registers it in the profile&#x27;s dependencies and dsh.profile.bundles">pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles</span></li><li><span data-zh="需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）" data-en="To pin a revision, use github:68110923/dsh-mobile-ux#v2.0.0 once a tag exists">需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）</span></li><li><span data-zh="想持续跟随 main：装完执行 dsh plugin --profile web update @local/mobile-keyboard-viewport" data-en="To follow main, run dsh plugin --profile web update @local/mobile-keyboard-viewport">想持续跟随 main：装完执行 dsh plugin --profile web update @local/mobile-keyboard-viewport</span></li></ul>
-            <div class="note">
-              <p data-zh="包名是 @local 前缀 —— 这是本插件历史遗留的本地作用域名。名字不影响功能，安装来源是那条 github: 地址，pnpm 不会去 npm 上找 @local 这个作用域。"
-                 data-en="The package name carries an @local scope, a legacy of this plugin's local-only origin. It does not affect behaviour: the install source is the github: spec, and pnpm never looks for an @local scope on npm.">包名是 <code>@local</code> 前缀 —— 这是本插件历史遗留的本地作用域名。名字不影响功能，安装来源是那条 <code>github:</code> 地址，pnpm 不会去 npm 上找 <code>@local</code> 这个作用域。</p>
-            </div>
           </div>
         </div>
         <div class="plan">
@@ -126,34 +122,28 @@
         </div>
       </section>
       <section id="npm">
-        <h2 data-zh="方案 B：从 npm 安装" data-en="Method B: install from npm">方案 B：从 npm 安装</h2>
-        <p class="sub" data-zh="本仓库目前没有发布到 npm —— 下面是为发布之后准备的说明，也是长期最省事的对外方式。"
-           data-en="This repo is not published to npm yet. The steps below are for once it is, and they are the least friction for users long term.">本仓库目前没有发布到 npm —— 下面是为发布之后准备的说明，也是长期最省事的对外方式。</p>
+        <h2 data-zh="方案 B：从 npm 安装（推荐）" data-en="Method B: install from npm (recommended)">方案 B：从 npm 安装（推荐）</h2>
+        <p class="sub" data-zh="已发布到 npm：一条命令，升级也最省事。"
+           data-en="Published on npm: one command, and the easiest route to upgrade later.">已发布到 npm：一条命令，升级也最省事。</p>
         <div class="plan">
           <header><span class="num">1</span>
-            <h3 data-zh="发布方：改掉私有名与 local 作用域" data-en="Publisher: drop the private flag and the local scope">发布方：改掉私有名与 local 作用域</h3>
-            <span class="badge">npm publish</span>
+            <h3 data-zh="装包并重启" data-en="Add the package and restart">装包并重启</h3>
+            <span class="badge">npm</span>
           </header>
           <div class="body">
-            <p data-zh="发布前包名要改成你自己的作用域，否则 npm 会因为 @local 不属于你而拒绝："
-               data-en="Rename the package to your own scope first, or npm rejects it because @local is not yours:">发布前包名要改成你自己的作用域，否则 npm 会因为 <code>@local</code> 不属于你而拒绝：</p>
-            <pre class="shell"><code>"name": "@yourscope/dsh-mobile-ux"   <span class="c"># 同时把 cordis.patch.yml 里的 name 改成同一个值</span>\n"private": false,                  <span class="c"># 去掉 private</span></code></pre>
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"><span data-zh="发布方" data-en="publisher">发布方</span></span><span class="chip">npm</span></div><pre><code><span class="tok-cmd">npm</span> login\n<span class="tok-cmd">npm</span> publish --access public   <span class="c"># 首次公开发布</span></code></pre></div>
-            <div class="note">
-              <p data-zh="改名会让加载器行名与浏览器模块 id 一起变化，升级者需要整页刷新一次；这是唯一一次性的代价。"
-                 data-en="Renaming changes the loader row name and the browser module id, so upgraders need one full page refresh. That is the only one-off cost.">改名会让加载器行名与浏览器模块 id 一起变化，升级者需要整页刷新一次；这是唯一一次性的代价。</p>
-            </div>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
+            <p data-zh="registry 配的是镜像时新版本可能还没同步，加 --registry=https://registry.npmjs.org/ 即可。"
+               data-en="On a registry mirror a fresh version may not be synced yet; add --registry=https://registry.npmjs.org/.">registry 配的是镜像时新版本可能还没同步，加 <code>--registry=https://registry.npmjs.org/</code> 即可。</p>
           </div>
         </div>
         <div class="plan">
           <header><span class="num">2</span>
-            <h3 data-zh="使用者：装包 + 重启" data-en="User: add the package, restart">使用者：装包 + 重启</h3>
-            <span class="badge">dsh plugin</span>
+            <h3 data-zh="升级到新版本" data-en="Upgrade later">升级到新版本</h3>
+            <span class="badge">update</span>
           </header>
           <div class="body">
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @yourscope/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
-            <p data-zh="registry 是镜像时新包可能 404，加 --registry=https://registry.npmjs.org/ 即可。"
-               data-en="On a registry mirror a fresh package can 404; add --registry=https://registry.npmjs.org/.">registry 是镜像时新包可能 404，加 <code>--registry=https://registry.npmjs.org/</code> 即可。</p>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web update @68110923/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
+            <ul class="plain"><li><span data-zh="npm 包名、仓库名与浏览器模块 id 三者一致，所以 npm 与 GitHub 两种来源可以互换" data-en="The npm name, the repository name and the browser module id all match, so the npm and GitHub sources are interchangeable">npm 包名、仓库名与浏览器模块 id 三者一致，所以 npm 与 GitHub 两种来源可以互换</span></li><li><span data-zh="升级后同样要重启并硬刷新，否则浏览器仍在跑旧 bundle" data-en="After upgrading, restart and hard-refresh as usual, or the browser keeps running the old bundle">升级后同样要重启并硬刷新，否则浏览器仍在跑旧 bundle</span></li></ul>
           </div>
         </div>
       </section>
@@ -275,8 +265,13 @@
                        data-en="Almost always a missing dsh-web restart or a page that was not hard-refreshed (immutable cache).">九成是没重启 dsh-web，或者页面没硬刷新（immutable 缓存）。</td>
               </tr>
               <tr>
+                <td><code>404 ... @68110923%2Fdsh-mobile-ux</code></td>
+                <td data-zh="registry 镜像还没同步该版本：加 --registry=https://registry.npmjs.org/ 重试。"
+                       data-en="The registry mirror has not synced that version: retry with --registry=https://registry.npmjs.org/.">registry 镜像还没同步该版本：加 <code>--registry=https://registry.npmjs.org/</code> 重试。</td>
+              </tr>
+              <tr>
                 <td><code>Failed to connect to github.com</code></td>
-                <td data-zh="网络到 GitHub 不通：换 npm 方案，或按方案 C 从目录安装。"
+                <td data-zh="网络到 GitHub 不通：改用 npm 方案，或按方案 C 从目录安装。"
                        data-en="No route to GitHub: use the npm method, or method C from a local directory.">网络到 GitHub 不通：换 npm 方案，或按方案 C 从目录安装。</td>
               </tr>
               <tr>

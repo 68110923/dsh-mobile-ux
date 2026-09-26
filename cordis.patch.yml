@@ -1,9 +1,9 @@
 # dsh-mobile-ux bundle patch: inserts the mobile UX pack's client plugin.
 #
-# The bundle name stays `@local/mobile-keyboard-viewport` so the loader can
+# The bundle name stays `@68110923/dsh-mobile-ux` so the loader can
 # resolve it from this profile's node_modules without any kernel-side change;
 # the product name of the pack itself is `dsh-mobile-ux` (see package.json
 # `dshMobileUx.name`).
 - insert:
     - id: mobile-keyboard-viewport
-      name: '@local/mobile-keyboard-viewport'
+      name: '@68110923/dsh-mobile-ux'

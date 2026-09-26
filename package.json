@@ -1,7 +1,7 @@
 {
-  "name": "@local/mobile-keyboard-viewport",
+  "name": "@68110923/dsh-mobile-ux",
   "version": "2.0.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Mobile UX pack for the DSH Web shell: narrow-screen layout fixes, iOS keyboard/viewport handling, and single-tap session switching.",
   "meta": {
@@ -37,9 +37,34 @@
   "dshMobileUx": {
     "name": "dsh-mobile-ux",
     "repository": "https://github.com/68110923/dsh-mobile-ux",
+    "pages": "https://68110923.github.io/dsh-mobile-ux/",
     "credits": [
       "https://github.com/AcidGr/dsh-web-mobile-fix",
       "https://github.com/TecFancy/dsh-mobile"
     ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "mobile",
+    "ios",
+    "keyboard",
+    "responsive"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/68110923/dsh-mobile-ux.git"
+  },
+  "homepage": "https://68110923.github.io/dsh-mobile-ux/",
+  "bugs": {
+    "url": "https://github.com/68110923/dsh-mobile-ux/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
