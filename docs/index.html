@@ -254,6 +254,24 @@
         display: grid;
         place-items: center;
       }
+      /* Nested lists must not inherit the step counter: `.steps > li` matches
+         only direct children, but the counter would still be inherited visually
+         through the shared marker rule, so reset it explicitly. */
+      ol.steps ul {
+        list-style: disc;
+        margin: 8px 0 0;
+        padding-left: 20px;
+        color: var(--fg-soft);
+        font-size: 14.5px;
+      }
+      ol.steps ul li {
+        padding: 0;
+        margin: 4px 0;
+      }
+      ol.steps ul li::before {
+        content: none;
+        counter-increment: none;
+      }
       .note {
         border-left: 3px solid var(--warn);
         background: var(--bg-soft);
