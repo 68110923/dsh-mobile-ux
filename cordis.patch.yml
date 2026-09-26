@@ -1,13 +1,20 @@
 # dsh-mobile-ux bundle patch: inserts the client plugin row.
 #
-# `name` is the npm/git package name, which is what the loader resolves from the
-# profile's node_modules. It matches package.json and the browser module id in
-# client.js — all three must agree.
+# All three identifiers are the same name on purpose:
 #
-# `id` is only the loader's row identifier and is deliberately kept stable across
-# the project's renames: profiles that installed an earlier version already carry
-# this id, and changing it would leave the old row in place and load the plugin
-# twice.
+#   this row's id      — what the plugin inventory lists
+#   `name` below       — the package the loader resolves from the profile's
+#                        node_modules, which must equal package.json's `name`
+#   client.js module id — the browser-side registration, which must equal the
+#                        package name too
+#
+# They were not always: the row id kept the old project name
+# (`mobile-keyboard-viewport`) long after everything else was renamed, because a
+# note here claimed changing it would leave a stale row and load the plugin twice.
+# That was wrong — the row is inserted fresh on every boot, the composed tree is
+# rebuilt from `dsh.profile.bundles` plus this patch, and nothing referenced the
+# old id. The only result of keeping it was a plugin list that disagreed with the
+# project it belongs to.
 - insert:
-    - id: mobile-keyboard-viewport
+    - id: dsh-mobile-ux
       name: 'dsh-mobile-ux'
