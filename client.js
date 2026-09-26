@@ -1,3 +1,50 @@
+/**
+ * dsh-mobile-ux — client half.
+ *
+ * A mobile-first UX pack for the DeepSeek Harness Web shell. Four sections, each
+ * independently switchable, each readable on its own:
+ *
+ *   §1 narrow-screen layout    settings dialog, composer bar, floating sidebar
+ *                              drawer and its scrim (<= 700px).
+ *   §2 iOS keyboard & viewport visual-viewport height following, document scroll
+ *                              lock, and the settle passes that remove the empty
+ *                              band left behind by a moving keyboard.
+ *   §3 sidebar single tap      one tap opens a session; a second, fast tap no
+ *                              longer falls through to rename.
+ *   §4 trajectory tail         the trajectory panel opens on its newest entry
+ *                              instead of somewhere in the middle of history.
+ *
+ * What this pack deliberately does NOT do: change any text size. An earlier
+ * version raised the composer's font size on touch devices to defeat the iOS
+ * focus-zoom, which is both a visible change the reader did not ask for and a
+ * fight with the product's own font-size setting (12..17px). Interactive-widget
+ * and scroll handling cover the same ground without writing typography.
+ *
+ * Credits and upstream projects
+ * -----------------------------
+ * - §1 is adapted from `dsh-web-mobile-fix` by AcidGr (MIT)
+ *   https://github.com/AcidGr/dsh-web-mobile-fix
+ *   with the equivalent feature set of `dsh-mobile` by TecFancy (MIT) as a
+ *   second reference: https://github.com/TecFancy/dsh-mobile
+ * - §2 and §3 come from measuring a real iPhone; every constant in them was
+ *   derived from a measurement rather than a guess.
+ * - §4 corrects a layout race in the shell's virtualised trajectory table.
+ *
+ * Switches
+ * --------
+ * `?dshMobileUx=0` disables the pack. A comma-separated list otherwise:
+ *
+ *   layout | keyboard | tap | trajectory   keep only the listed sections
+ *   nolayout | nokeyboard | notap | notrajectory   drop the listed sections
+ *   keepdrawer   leave the sidebar drawer open after a session tap
+ *   lock | nolock    document scroll lock while the keyboard is open
+ *   meta             also pin `maximum-scale` in the viewport meta
+ *   bottom           visual-viewport pan compensation (off by default)
+ *   hud              show the live readout
+ *
+ * The same switches can be set before load as `window.__dshMobileUx = {...}`.
+ */
+
 window.__ModuleLoader__.load({
   id: 'dsh-mobile-ux',
   factory() {
@@ -20,16 +67,6 @@ window.__ModuleLoader__.load({
 
     /** Width at or below which the narrow-screen layout applies. */
     const NARROW_QUERY = '(max-width: 700px)';
-
-    /**
-     * Marks `html` when the font-size guard is in force.
-     *
-     * Set by the plugin, not by a media query: see {@link focusZoomGuardNeeded}.
-     */
-    const GUARD_FONT_ATTRIBUTE = 'data-dsh-mux-guard-font';
-
-    /** The size a focused editable is raised to; see §2. */
-    const FOCUS_FONT_SIZE = '17px';
 
     /**
      * How close to the bottom counts as "the reader is following the tail" (§4).
@@ -67,46 +104,6 @@ window.__ModuleLoader__.load({
      * Documents the custom property written by §2.
      */
     const HEIGHT_STYLES = `:root { ${HEIGHT_VARIABLE}: 100%; }\n`;
-
-    /**
-     * The font guard of §2.
-     *
-     * Sizing alone loses the cascade: the composer declares 14px with a single
-     * attribute selector and comes later, so a plain `font-size: 17px` measured as
-     * 14px on the live page. Two things make this rule win:
-     *
-     * - `!important` puts the declaration above the composer's normal one.
-     * - The `[class*="_"]` head arms a descendant rule, which outranks a compound
-     *   `[contenteditable="true"][class*="_input"]` selector.
-     *
-     * It has to win *before* the tap, not on `focusin`: iOS decides whether to
-     * zoom when focus moves, so an inline override written inside the focus
-     * handler is already too late for the first tap of a session. A stylesheet
-     * applies from load, which removes that first-tap window entirely.
-     *
-     * Gated on `html[data-dsh-mux-guard-font]`, which the plugin sets only where
-     * {@link focusZoomGuardNeeded} says the platform would zoom. A media query
-     * cannot express that: a touch-screen laptop matches `(pointer: coarse)` and
-     * would get its input text enlarged for nothing.
-     */
-    const ZOOM_GUARD_STYLES =
-      'html[data-dsh-mux-guard-font] {\n' +
-      '  [contenteditable=""], [contenteditable="true"],\n' +
-      '  textarea:not([disabled]),\n' +
-      '  input:not([disabled]):not([type]),\n' +
-      '  input[type="text"]:not([disabled]),\n' +
-      '  input[type="number"]:not([disabled]),\n' +
-      '  input[type="search"]:not([disabled]),\n' +
-      '  input[type="url"]:not([disabled]):not([readonly]),\n' +
-      '  input[type="email"]:not([disabled]):not([readonly]),\n' +
-      '  input[type="password"]:not([disabled]) {\n' +
-      '    font-size: 17px !important;\n' +
-      '  }\n' +
-      '  [class*="_"] [contenteditable=""], [class*="_"] [contenteditable="true"],\n' +
-      '  [class*="_"] textarea:not([disabled]) {\n' +
-      '    font-size: 17px !important;\n' +
-      '  }\n' +
-      '}\n';
 
     /**
      * Locks the document itself while an overlay keyboard is up (§2).
@@ -288,16 +285,18 @@ window.__ModuleLoader__.load({
      * one section, `?dshMobileUx=nokeyboard` removes one, and everything else
      * keeps its default. Programmatic overrides win over the URL.
      *
-     * @returns {{ layout: boolean, keyboard: boolean, tap: boolean, hud: boolean,
-     *   lock: boolean, font: boolean, meta: boolean, bottom: boolean }}
+     * @returns {{ layout: boolean, keyboard: boolean, tap: boolean,
+     *   trajectory: boolean, hud: boolean, lock: boolean, meta: boolean,
+     *   bottom: boolean }}
      */
     function readPackSwitches() {
       const raw = new URL(window.location.href).searchParams.get('dshMobileUx');
       const parts = (raw ?? '').split(',').map((part) => part.trim()).filter(Boolean);
       const off = parts.includes('0') || parts.includes('off');
       const keep = parts.filter(
-        (part) => !part.startsWith('no') && !['0', 'off', 'hud', 'lock', 'font', 'meta',
-          'bottom'].includes(part),
+        (part) =>
+          !part.startsWith('no') &&
+          !['0', 'off', 'hud', 'lock', 'meta', 'bottom'].includes(part),
       );
       /**
        * @param name - switch name, also the `no<name>` spelling.
@@ -328,7 +327,6 @@ window.__ModuleLoader__.load({
         closeDrawer: pick('closeDrawer', true),
         hud: optIn('hud'),
         lock: pick('lock', true),
-        font: pick('font', true),
         meta: optIn('meta'),
         bottom: optIn('bottom'),
       };
@@ -395,25 +393,6 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * @returns true only where the platform zooms the page when a focused
-     *   editable renders below 16px.
-     *
-     * This is deliberately narrower than {@link touchDevice}: the font-size raise
-     * exists purely to defeat that zoom, and it is visible. A touch-screen laptop
-     * reports `(pointer: coarse)` and would have paid the size change with no
-     * benefit, so the guard keys off the platform that actually does it.
-     */
-    function focusZoomGuardNeeded() {
-      const userAgent = navigator.userAgent;
-      if (/iPhone|iPod/.test(userAgent)) return true;
-      if (/iPad/.test(userAgent)) return true;
-      // iPadOS 13+ reports a desktop UA; the touch points give it away.
-      if (/Macintosh/.test(userAgent) && (navigator.maxTouchPoints ?? 0) > 1) return true;
-      // Chromium on Android applies the same 16px rule.
-      return /Android/.test(userAgent) && /Chrome\//.test(userAgent);
-    }
-
-    /**
      * Editable elements the keyboard can open for.
      *
      * Attribute-based rather than class-based so it survives a composer rebuild,
@@ -425,46 +404,19 @@ window.__ModuleLoader__.load({
       ':not([type="button"]):not([type="submit"]):not([type="range"])';
 
     /**
-     * The editable element currently holding the raised font size, if any.
+     * True while an editable field holds focus.
      *
-     * Focus is tracked through focusin/focusout rather than by reading
+     * Tracked through focusin/focusout rather than by reading
      * `document.activeElement`: iOS moves the active element around while the
      * keyboard animates and around deletions, and a latch that depends on the
      * DOM's current idea of focus drops out mid-session — which silently switches
      * the height follower and the scroll lock off.
      */
-    let focusedEditable = null;
-    /** Removes the inline font-size override from {@link focusedEditable}. */
-    let restoreFontSize = () => {};
+    let editableHasFocus = false;
 
     /** @returns true when an editable field holds focus, per focusin/focusout. */
     function editableFocused() {
-      return focusedEditable !== null;
-    }
-
-    /**
-     * Raises one editable element above the platform's focus-zoom threshold.
-     *
-     * The stylesheet rule is the primary path and normally wins on its own. This
-     * inline copy is the fallback for a build where the composer's own `font-size`
-     * outranks it, and it runs from a capture-phase `pointerdown`/`touchstart` as
-     * well as from `focusin`, so the size is already in place when the platform
-     * evaluates the zoom.
-     *
-     * @param element - the element receiving focus or the touch.
-     */
-    function raiseFontSize(element) {
-      if (element === null || element.style === undefined) return;
-      restoreFontSize();
-      const previous = element.style.fontSize;
-      element.style.fontSize = FOCUS_FONT_SIZE;
-      focusedEditable = element;
-      restoreFontSize = () => {
-        if (previous === '') element.style.removeProperty('font-size');
-        else element.style.fontSize = previous;
-        focusedEditable = null;
-        restoreFontSize = () => {};
-      };
+      return editableHasFocus;
     }
 
     /**
@@ -701,14 +653,7 @@ window.__ModuleLoader__.load({
       const documentElement = doc.documentElement;
       const body = doc.body;
 
-      // The font guard applies only where the platform zooms on focus; the flag it
-      // hangs on is decided here rather than in CSS, which cannot tell a phone from
-      // a touch-screen laptop.
-      const guardFont = switches.font && focusZoomGuardNeeded();
-      if (guardFont) documentElement.setAttribute(GUARD_FONT_ATTRIBUTE, '');
-
       if (switches.layout) addStyles(LAYOUT_STYLES);
-      if (guardFont) addStyles(ZOOM_GUARD_STYLES);
       const lockElement = doc.createElement('style');
       lockElement.textContent = LOCK_STYLES;
       // The scroll lock is appended and removed with the keyboard; a <style>
@@ -856,7 +801,7 @@ window.__ModuleLoader__.load({
         const switches =
           `kb=${keyboardOpen() ? 1 : 0} focus=${editableFocused() ? 1 : 0}` +
           ` lock=${locked ? 1 : 0} bot=${switches.bottom ? 1 : 0}` +
-          ` font=${switches.font ? 17 : 0} meta=${switches.meta ? 1 : 0}`;
+          ` meta=${switches.meta ? 1 : 0}`;
         const position =
           `y=${metrics.scrollY} oT=${Math.round(metrics.offsetTop)}` +
           ` s=${metrics.scale.toFixed(2)} docH=${metrics.documentScrollHeight}`;
@@ -1074,34 +1019,24 @@ window.__ModuleLoader__.load({
       };
 
       /**
-       * Raises the font size on the way *down*, before the platform moves focus.
-       *
-       * iOS evaluates the focus-zoom when focus changes, so anything written in
-       * the focus handler is one event too late for the first tap. The stylesheet
-       * rule normally wins this race on its own; this is the belt-and-braces path
-       * for a build where the composer's own declaration outranks it.
-       */
-      const onPreFocus = (event) => {
-        if (!switches.font) return;
-        const target = event.target;
-        if (target?.matches?.(EDITABLE_SELECTOR)) raiseFontSize(target);
-      };
-
-      /**
        * Focus events run in the capture phase: the composer is a contenteditable
        * React tree that can stop propagation, and the latch must not depend on
        * whether some intermediate handler allowed the event through.
+       *
+       * Nothing here touches the element's own styling: the composer's text size
+       * belongs to the product and to the reader's own setting, so this pack never
+       * writes one.
        */
       const onFocusIn = (event) => {
         const target = event.target;
-        if (switches.font && target?.matches?.(EDITABLE_SELECTOR)) raiseFontSize(target);
+        if (target?.matches?.(EDITABLE_SELECTOR)) editableHasFocus = true;
         onViewportChange('focusin');
         scheduleSettlePasses();
       };
       const onFocusOut = (event) => {
         // Focus moving *between* two editables must not clear the latch.
         const next = event.relatedTarget;
-        if (next === null || !next?.matches?.(EDITABLE_SELECTOR)) restoreFontSize();
+        if (next === null || !next?.matches?.(EDITABLE_SELECTOR)) editableHasFocus = false;
         settle('focusout');
         scheduleSettlePasses();
       };
@@ -1115,8 +1050,6 @@ window.__ModuleLoader__.load({
       // Some iOS versions open the keyboard without firing a viewport resize.
       window.addEventListener('focusin', onFocusIn, true);
       window.addEventListener('focusout', onFocusOut, true);
-      window.addEventListener('pointerdown', onPreFocus, true);
-      window.addEventListener('touchstart', onPreFocus, true);
       if (switches.tap) {
         // Capture phase, on the way up: commit the tap before the platform can
         // assemble a double click, and swallow that double click if it comes.
@@ -1150,8 +1083,6 @@ window.__ModuleLoader__.load({
         window.removeEventListener('orientationchange', handleWindow);
         window.removeEventListener('focusin', onFocusIn, true);
         window.removeEventListener('focusout', onFocusOut, true);
-        window.removeEventListener('pointerdown', onPreFocus, true);
-        window.removeEventListener('touchstart', onPreFocus, true);
         window.removeEventListener('pointerup', onSessionTap, true);
         window.removeEventListener('touchend', onSessionTap, true);
         window.removeEventListener('dblclick', onSessionTapSuppress, true);
@@ -1161,7 +1092,6 @@ window.__ModuleLoader__.load({
         if (frame !== null) window.cancelAnimationFrame(frame);
         cancelSettlePasses();
         restoreViewportMeta();
-        restoreFontSize();
         for (const record of previous) {
           if (record.value === '') {
             record.element.style.removeProperty(record.property);
@@ -1171,7 +1101,6 @@ window.__ModuleLoader__.load({
         }
         hud?.remove();
         lockElement.remove();
-        documentElement.removeAttribute(GUARD_FONT_ATTRIBUTE);
         cancelTrajectoryFollow();
         trajectoryObserver?.disconnect();
         for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {

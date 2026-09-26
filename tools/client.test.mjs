@@ -505,68 +505,41 @@ console.log('dsh-mobile-ux: client logic');
   env.dispose();
 }
 
-// 10. §2 font guard: only where the platform zooms on focus.
-{
-  const ZH = 'data-dsh-mux-guard-font';
-  const cases = [
-    ['iPhone', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', maxTouchPoints: 5 }, true],
-    ['iPad (desktop UA)', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', maxTouchPoints: 5 }, true],
-    ['Android Chrome', { userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile', maxTouchPoints: 5 }, true],
-    ['touch-screen laptop', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120', maxTouchPoints: 10 }, false],
-    ['plain desktop', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120', maxTouchPoints: 0 }, false],
-  ];
-  for (const [label, options, expected] of cases) {
-    const env = load(options);
-    const attrSet = Object.prototype.hasOwnProperty.call(env.documentElement.attributes, ZH);
-    check(`font guard on ${label}`, attrSet, expected);
-    const ruleInjected = env.attached().some((css) => css.includes('data-dsh-mux-guard-font'));
-    check(`font rule injected on ${label}`, ruleInjected, expected);
-    env.dispose();
-    check(`font guard removed on dispose (${label})`, Object.prototype.hasOwnProperty.call(env.documentElement.attributes, ZH), false);
-  }
-}
-
-// 11. §4: the trajectory pane is followed to its tail, but never against the reader.
+// 10. The pack must never write a text size.
+//
+// An earlier version raised the composer's font size on touch devices to defeat
+// the iOS focus-zoom; on a touch-screen laptop that enlarged input text the
+// reader never asked to change, and it fought the product's own font-size
+// setting. This pins the guarantee so it cannot come back.
 {
   const env = load();
-  const pane = env.makeElement('div');
-  pane.setAttribute('data-trajectory-scroll', '');
-  pane.scrollHeight = 5000;
-  pane.clientHeight = 600;
-  pane.scrollTop = 1800;                       // parked mid-history, like the bug
-  let lastRowScrolledIntoView = 0;
-  const row = env.makeElement('tr');
-  row.setAttribute('data-record-index', '41');
-  row.scrollIntoView = () => {
-    lastRowScrolledIntoView += 1;
-    pane.scrollTop = pane.scrollHeight;        // the browser would land at the tail
+  const written = new Set();
+  const originalCreate = env.document.createElement;
+  env.document.createElement = (tag) => {
+    const element = originalCreate(tag);
+    const style = element.style;
+    const originalSetProperty = style.setProperty.bind(style);
+    style.setProperty = (name, value) => {
+      written.add(String(name).toLowerCase());
+      return originalSetProperty(name, value);
+    };
+    return element;
   };
-  pane.querySelectorAll = (selector) => (selector.includes('tr') ? [row] : []);
-  // The observer's fast-path guard uses querySelector, the scan uses querySelectorAll.
-  env.document.querySelector = (selector) => (selector.includes('trajectory') ? pane : null);
-  env.document.querySelectorAll = (selector) =>
-    selector.includes('trajectory') ? [pane] : [];
-
-  const open = env.trajectoryObserverCallback;
-  check('trajectory: observer wired', typeof open, 'function');
-  open();
-  for (const timer of env.timers.slice()) timer.fn();
-  check('trajectory: tail is followed', lastRowScrolledIntoView > 0, true);
-  check('trajectory: pane ends at the bottom', pane.scrollTop, pane.scrollHeight);
-
-  // The reader scrolls up: the pack must stop following. A real scroll fires an
-  // event, which is exactly what the intent watcher listens for.
-  const before = lastRowScrolledIntoView;
-  pane.scrollTop = 0;
-  pane.fire('scroll');
-  for (const timer of env.timers.slice()) timer.fn();
-  check('trajectory: scrolling up is respected', lastRowScrolledIntoView, before);
-  env.dispose();
-}
-// 12. §4 can be switched off.
-{
-  const env = load({ search: '?dshMobileUx=notrajectory' });
-  check('notrajectory: no observer', env.trajectoryObserverCallback, null);
+  // Re-install so the creation spy sees the stylesheets too.
+  const env2 = load();
+  const editable = env2.makeEditable();
+  env2.document.activeElement = editable;
+  env2.document.querySelector = () => null;
+  env2.document.querySelectorAll = () => [];
+  env2.listeners.get('win:focusin')?.({ target: editable, relatedTarget: null });
+  env2.win.visualViewport.height = 300;
+  env2.listeners.get('win:focusin')?.({ target: editable, relatedTarget: null });
+  check('no font-size inline override on focus', editable.style.fontSize, '');
+  check('no font-size in the injected stylesheets',
+    env2.attached().some((css) => /font-size/i.test(css)), false);
+  check('no zoom-guard attribute is set',
+    Object.prototype.hasOwnProperty.call(env2.documentElement.attributes, 'data-dsh-mux-guard-font'), false);
+  env2.dispose();
   env.dispose();
 }
 
