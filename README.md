@@ -138,9 +138,9 @@ node --check client.js         # 语法
 
 ## 安装来源说明
 
-- 从 GitHub 安装（推荐）：`dsh plugin --profile web add github:68110923/dsh-mobile-ux`
-- 本地 / 离线：`dsh plugin --profile web add /path/to/dsh-mobile-ux`（`link:` 语义，改完源码重启即生效）
-- npm 包名：`@68110923/dsh-mobile-ux`（发到 npm 后 `dsh plugin --profile web add @68110923/dsh-mobile-ux` 即可，装的速度比走 GitHub 快）
+- **从 GitHub 安装（推荐）**：`dsh plugin --profile web add github:68110923/dsh-mobile-ux`
+- **本地 / 离线**：`dsh plugin --profile web add /path/to/dsh-mobile-ux`（`link:` 语义，改完源码重启即生效）
+- **npm**：尚未发布。发布者的 npm 账号启用的是安全密钥型 2FA（Auth & Writes），而构建服务器没有 TOTP 验证器，npm 要求发布必须提供 OTP 或可绕过 2FA 的 token，三种写法实测均被 registry 拒绝。使用者不受影响——GitHub 安装拿到的是同一个包，已逐字节比对。将来要发 npm，走 GitHub Actions + Trusted Publishing（OIDC）即可完全绕开 token 与 OTP。
 
 ## License
 

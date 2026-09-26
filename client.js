@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@68110923/dsh-mobile-ux',
+  id: '@local/mobile-keyboard-viewport',
   factory() {
 
     /**

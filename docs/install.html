@@ -85,9 +85,9 @@
         </div>
       </section>
       <section id="github">
-        <h2 data-zh="方案 A：直接从 GitHub 安装" data-en="Method A: install straight from GitHub">方案 A：直接从 GitHub 安装</h2>
-        <p class="sub" data-zh="与 npm 等价，适合想跟 main 分支、或不走 registry 的环境。已实测走通。"
-           data-en="Equivalent to the npm route, and the one to use when you want to follow main or cannot reach a registry. Verified end to end.">不需要发布到 npm，也不需要手动拷文件。已实测走通。</p>
+        <h2 data-zh="方案 A：直接从 GitHub 安装（推荐）" data-en="Method A: install straight from GitHub (recommended)">方案 A：直接从 GitHub 安装（推荐）</h2>
+        <p class="sub" data-zh="不需要发布到 npm，也不需要手动拷文件。已实测走通。"
+           data-en="No npm publish and no manual copying required. Verified end to end.">不需要发布到 npm，也不需要手动拷文件。已实测走通。</p>
         <div class="plan">
           <header><span class="num">1</span>
             <h3 data-zh="一条命令装进 profile" data-en="Install it into the profile">一条命令装进 profile</h3>
@@ -122,28 +122,28 @@
         </div>
       </section>
       <section id="npm">
-        <h2 data-zh="方案 B：从 npm 安装（推荐）" data-en="Method B: install from npm (recommended)">方案 B：从 npm 安装（推荐）</h2>
-        <p class="sub" data-zh="已发布到 npm：一条命令，升级也最省事。"
-           data-en="Published on npm: one command, and the easiest route to upgrade later.">已发布到 npm：一条命令，升级也最省事。</p>
+        <h2 data-zh="方案 B：从 npm 安装（暂不可用）" data-en="Method B: install from npm (not available yet)">方案 B：从 npm 安装（暂不可用）</h2>
+        <p class="sub" data-zh="本包尚未发布到 npm。下面是发布后会变成的样子，以及目前卡在哪里。"
+           data-en="This package is not on npm yet. Below is how it will work once it is, and what is blocking it today.">本包尚未发布到 npm。下面是发布后会变成的样子，以及目前卡在哪里。</p>
         <div class="plan">
           <header><span class="num">1</span>
-            <h3 data-zh="装包并重启" data-en="Add the package and restart">装包并重启</h3>
+            <h3 data-zh="发布后会是这样" data-en="Once published, it will look like this">发布后会是这样</h3>
             <span class="badge">npm</span>
           </header>
           <div class="body">
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
-            <p data-zh="registry 配的是镜像时新版本可能还没同步，加 --registry=https://registry.npmjs.org/ 即可。"
-               data-en="On a registry mirror a fresh version may not be synced yet; add --registry=https://registry.npmjs.org/.">registry 配的是镜像时新版本可能还没同步，加 <code>--registry=https://registry.npmjs.org/</code> 即可。</p>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @yourscope/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
+            <ul class="plain"><li><span data-zh="包名会带发布者的作用域，装起来比走 GitHub 快，也不依赖 GitHub 可达" data-en="The name will carry the publisher&#x27;s scope; installing is faster than GitHub and does not depend on GitHub being reachable">包名会带发布者的作用域，装起来比走 GitHub 快，也不依赖 GitHub 可达</span></li><li><span data-zh="registry 是镜像时新版本可能还没同步，加 --registry=https://registry.npmjs.org/" data-en="On a registry mirror a fresh version may not be synced; add --registry=https://registry.npmjs.org/">registry 是镜像时新版本可能还没同步，加 --registry=https://registry.npmjs.org/</span></li></ul>
           </div>
         </div>
         <div class="plan">
           <header><span class="num">2</span>
-            <h3 data-zh="升级到新版本" data-en="Upgrade later">升级到新版本</h3>
-            <span class="badge">update</span>
+            <h3 data-zh="目前卡在哪里" data-en="What is blocking it today">目前卡在哪里</h3>
+            <span class="badge" data-zh="发布方的问题" data-en="publisher side">发布方的问题</span>
           </header>
           <div class="body">
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web update @68110923/dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
-            <ul class="plain"><li><span data-zh="npm 包名、仓库名与浏览器模块 id 三者一致，所以 npm 与 GitHub 两种来源可以互换" data-en="The npm name, the repository name and the browser module id all match, so the npm and GitHub sources are interchangeable">npm 包名、仓库名与浏览器模块 id 三者一致，所以 npm 与 GitHub 两种来源可以互换</span></li><li><span data-zh="升级后同样要重启并硬刷新，否则浏览器仍在跑旧 bundle" data-en="After upgrading, restart and hard-refresh as usual, or the browser keeps running the old bundle">升级后同样要重启并硬刷新，否则浏览器仍在跑旧 bundle</span></li></ul>
+            <p data-zh="发布者的 npm 账号启用了安全密钥型的 2FA（Auth &amp; Writes），而这台服务器没有 TOTP 验证器；npm 对这类账号要求发布时必须提供 OTP，或使用能绕过 2FA 的 token。已实测三种写法（granular token、无作用域包、组织 scope）均被 registry 拒绝。"
+               data-en="The publisher's npm account uses a security-key form of 2FA (Auth &amp; Writes) while this server has no TOTP authenticator, and npm demands an OTP — or a 2FA-bypassing token — for publishing. Three attempts (granular token, unscoped package, organization scope) were all rejected by the registry.">发布者的 npm 账号启用了安全密钥型的 2FA（Auth &amp; Writes），而这台服务器没有 TOTP 验证器；npm 对这类账号要求发布时必须提供 OTP，或使用能绕过 2FA 的 token。已实测三种写法均被 registry 拒绝。</p>
+            <ul class="plain"><li><span data-zh="对使用者没有影响：方案 A 装的是一模一样的包，已验证逐字节一致" data-en="Users are unaffected: method A installs the very same package, verified byte for byte">对使用者没有影响：方案 A 装的是一模一样的包，已验证逐字节一致</span></li><li><span data-zh="将来要发 npm，改用 GitHub Actions + Trusted Publishing（OIDC）即可完全绕开 token 与 OTP" data-en="To publish later, GitHub Actions with Trusted Publishing (OIDC) sidesteps both tokens and OTPs">将来要发 npm，改用 GitHub Actions + Trusted Publishing（OIDC）即可完全绕开 token 与 OTP</span></li></ul>
           </div>
         </div>
       </section>
@@ -265,9 +265,9 @@
                        data-en="Almost always a missing dsh-web restart or a page that was not hard-refreshed (immutable cache).">九成是没重启 dsh-web，或者页面没硬刷新（immutable 缓存）。</td>
               </tr>
               <tr>
-                <td><code>404 ... @68110923%2Fdsh-mobile-ux</code></td>
-                <td data-zh="registry 镜像还没同步该版本：加 --registry=https://registry.npmjs.org/ 重试。"
-                       data-en="The registry mirror has not synced that version: retry with --registry=https://registry.npmjs.org/.">registry 镜像还没同步该版本：加 <code>--registry=https://registry.npmjs.org/</code> 重试。</td>
+                <td><code>404 Not Found - PUT .../dsh-mobile-ux</code></td>
+                <td data-zh="包尚未发布到 npm（见方案 B），改用方案 A 从 GitHub 安装。"
+                       data-en="The package is not on npm yet (see method B); use method A from GitHub.">包尚未发布到 npm（见方案 B），改用方案 A 从 GitHub 安装。</td>
               </tr>
               <tr>
                 <td><code>Failed to connect to github.com</code></td>
