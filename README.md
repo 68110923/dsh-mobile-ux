@@ -25,6 +25,23 @@ systemctl restart dsh-web          # 必须重启，见下
 
 ---
 
+## 更新（重要：`add` 不会更新）
+
+从 GitHub 安装的包被 pnpm 锁在一个具体 commit 上，**重复 `add` 不会拉到新代码** —— 它会打印 `Lockfile is up to date, resolution step is skipped` 然后什么都不做。要更新用 `update`：
+
+```bash
+dsh plugin --profile web update dsh-mobile-ux
+systemctl restart dsh-web          # 然后硬刷新页面
+```
+
+| 命令 | 行为 |
+|---|---|
+| `dsh plugin --profile web add github:68110923/dsh-mobile-ux` | 首次安装用；已装过则**跳过解析**，不更新 |
+| `dsh plugin --profile web update dsh-mobile-ux` | 重新解析该依赖，拉到远端最新 commit |
+| `dsh plugin --profile web remove dsh-mobile-ux` | 卸载 |
+
+> 更新之后同样要**重启 + 硬刷新**：DSH 的 bundle 版本号由文件 mtime/size 算出、响应头是 `immutable`，只更新文件不重启的话，浏览器仍执行旧代码。
+
 ## 它解决什么
 
 DSH 的 Web 壳层是桌面优先的。在手机上用它，会依次撞到这几堵墙：
