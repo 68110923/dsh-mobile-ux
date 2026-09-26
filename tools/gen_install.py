@@ -47,7 +47,7 @@ A(f'''      <div class="hero">
           <li data-zh="纯客户端 · 无构建" data-en="client-side only · no build">纯客户端 · 无构建</li>
           <li>MIT</li>
         </ul>
-        {shell('<span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux')}
+        {shell('<span class="tok-cmd">dsh</span> plugin --profile web add github:68110923/dsh-mobile-ux')}
       </div>''')
 
 # ---- requirements ----
@@ -98,11 +98,11 @@ A(f'''      <section id="github">
             <span class="badge">github:</span>
           </header>
           <div class="body">
-            {term('<span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux', title_bilingual=("你的电脑", "your machine"), chip="pnpm")}
+            {term('<span class="tok-cmd">dsh</span> plugin --profile web add github:68110923/dsh-mobile-ux', title_bilingual=("你的电脑", "your machine"), chip="pnpm")}
             <ul class="plain">{li([
               t("pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles", "pnpm fetches the repo and registers it in the profile's dependencies and dsh.profile.bundles"),
               t("需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）", "To pin a revision, use github:68110923/dsh-mobile-ux#v2.0.0 once a tag exists"),
-              t("想持续跟随 main：装完执行 dsh plugin --profile web update @local/mobile-keyboard-viewport", "To follow main, run dsh plugin --profile web update @local/mobile-keyboard-viewport"),
+              t("想跟随 main 上的新提交：装完执行 dsh plugin --profile web update dsh-mobile-ux", "To follow new commits on main, run dsh plugin --profile web update dsh-mobile-ux"),
             ])}</ul>
           </div>
         </div>
@@ -264,7 +264,7 @@ A(f'''      <section id="uninstall">
           <div class="card">
             <h3 data-zh="卸载" data-en="Uninstall">卸载</h3>
             <p class="scope" data-zh="一条命令 + 重启" data-en="one command plus a restart">一条命令 + 重启</p>
-            {term('<span class="tok-cmd">dsh</span> plugin --profile web remove @local/mobile-keyboard-viewport\\n<span class="tok-cmd">systemctl</span> restart dsh-web', chip="terminal")}
+            {term('<span class="tok-cmd">dsh</span> plugin --profile web remove dsh-mobile-ux\\n<span class="tok-cmd">systemctl</span> restart dsh-web', chip="terminal")}
           </div>
           <div class="card">
             <h3 data-zh="升级" data-en="Upgrade">升级</h3>
