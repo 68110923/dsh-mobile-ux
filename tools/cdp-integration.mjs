@@ -110,7 +110,12 @@ const summary = () =>
       htmlOverflow: getComputedStyle(document.documentElement).overflow,
       bodyOverflow: getComputedStyle(document.body).overflow,
       docScrollable: document.documentElement.scrollHeight > document.documentElement.clientHeight,
-      pluginFix: !!document.querySelector('style[data-plugin="dsh-web-mobile-fix"]'),
+      // The pack injects plain <style> elements with no marker attribute, so it is
+      // identified by the comment its §1 stylesheet starts with. (This used to look
+      // for `style[data-plugin="dsh-web-mobile-fix"]`, an attribute no version of
+      // this pack ever set — the check was permanently false.)
+      layoutStyles: [...document.querySelectorAll('style')]
+        .some((s) => s.textContent.includes('mobile UI fixes')),
       frameGrid: frame ? getComputedStyle(frame).gridTemplateColumns : null,
       sidebarCollapsed: frame?.hasAttribute('data-sidebar-collapsed') ?? null,
       editorVisible: editor ? editor.getBoundingClientRect().bottom <= Math.round(visualViewport.height) : null,

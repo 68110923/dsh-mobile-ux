@@ -1,5 +1,5 @@
 /**
- * Deterministic test for the mobile-keyboard-viewport client half.
+ * Deterministic test for the dsh-mobile-ux client half.
  *
  * The client bundle is a script that registers a factory; this harness loads it
  * with a fake `document` and a programmable `visualViewport`, then drives the
@@ -31,14 +31,25 @@ function check(name, actual, expected) {
 }
 
 /**
+ * True when the scroll-lock stylesheet is currently attached.
+ *
+ * @param env - a harness from {@link load}.
+ * @returns whether the document is locked.
+ */
+function lockApplied(env) {
+  return env.attached().some((css) => css.includes('overscroll-behavior: none'));
+}
+
+/**
  * Builds the fake environment, loads the client bundle into it, and returns the
  * handles a test needs to drive it.
  *
- * @param {{ search?: string, viewport?: object|null, innerHeight?: number }} options
+ * @param {{ search?: string, viewport?: object|null, innerHeight?: number,
+ *   options?: object }} options
  */
 function load(options = {}) {
   const { search = '', innerHeight = 665, userAgent = 'iPhone', maxTouchPoints = 5,
-    metaElement = null, deferFrames = false } = options;
+    metaElement = null, deferFrames = false, options: optionOverrides = null } = options;
   const listeners = new Map();
   const timers = [];
 
@@ -287,6 +298,9 @@ function load(options = {}) {
   };
   win.document = document;
   win.navigator = sandbox.navigator;
+  // The reader's overrides are set before the bundle runs, exactly as the README
+  // tells them to; the pack must read this property and never write it.
+  if (optionOverrides !== null) win.__dshMobileUxOptions = optionOverrides;
   sandbox.window.__ModuleLoader__ = {
     load(value) {
       registration = value;
@@ -362,7 +376,7 @@ console.log('dsh-mobile-ux: client logic');
 {
   const env = load();
   check('closed: root height equals innerHeight', env.root.style.height, '665px');
-  check('closed: no scroll lock applied', env.attached().some((css) => css.includes('overscroll-behavior: none')), false);
+  check('closed: no scroll lock applied', lockApplied(env), false);
   env.dispose();
 }
 
@@ -374,7 +388,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.height = 300;
   env.listeners.get('win:focusin')({ target: env.document.activeElement, relatedTarget: null });
   check('open: root follows visible height', env.root.style.height, '300px');
-  check('open: document is scroll-locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
+  check('open: document is scroll-locked', lockApplied(env), true);
 
   // A pan is compensated: the shell grows by exactly the pan so that lifting it by
   // the pan leaves the visible area filled. `visible + pan` on screen == visible.
@@ -395,7 +409,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.offsetTop = 0;
   env.listeners.get('win:focusout')({ target: env.document.activeElement, relatedTarget: null });
   check('closed again: layout height restored', env.root.style.height, '665px');
-  check('closed again: lock removed', env.attached().some((css) => css.includes('overscroll-behavior: none')), false);
+  check('closed again: lock removed', lockApplied(env), false);
   env.dispose();
   check('dispose: heights removed', env.root.style.height, '');
 }
@@ -413,7 +427,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.scale = 2;
   env.listeners.get('win:focusin')({ target: env.document.activeElement, relatedTarget: null });
   check('zoom: shell follows the visible height', env.root.style.height, '300px');
-  check('zoom: document is locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
+  check('zoom: document is locked', lockApplied(env), true);
   env.dispose();
 }
 
@@ -433,7 +447,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.height = 300;
   env.listeners.get('win:focusin')({ target: editable, relatedTarget: null });
   check('nolock: height still follows', env.root.style.height, '300px');
-  check('nolock: no scroll lock', env.attached().some((css) => css.includes('overscroll-behavior: none')), false);
+  check('nolock: no scroll lock', lockApplied(env), false);
   env.dispose();
 }
 // The focus settle schedule re-asserts the height after the keyboard animation.
@@ -729,7 +743,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.fire('resize');
   check('zoomed: shell still follows the visible height', env.root.style.height, '300px');
   check('zoomed: the keyboard is still considered open', env.keyboardOpen(), true);
-  check('zoomed: the document is still locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
+  check('zoomed: the document is still locked', lockApplied(env), true);
 
   // And a document scroll is still undone while zoomed.
   env.win.scrollY = 40;
@@ -762,6 +776,132 @@ console.log('dsh-mobile-ux: client logic');
   check('freezoom: scale left alone',
     /maximum-scale/.test(free.document.querySelector('meta').content), false);
   free.dispose();
+}
+
+// 13. `nokeyboard` is a real switch: no height is written and no baseline is kept.
+//
+// The regression this pins: the section switches used to be consulted for the
+// stylesheet and for the cleanup bookkeeping but not for the writes themselves, so
+// `?dshMobileUx=nokeyboard` still pinned the shell — and because the bookkeeping
+// had been told the section was off, disposal restored nothing and the inline
+// heights stayed on `#root`, `body` and `<html>` for the rest of the page's life.
+{
+  const env = load({ search: '?dshMobileUx=nokeyboard' });
+  const editable = env.makeEditable();
+  env.document.activeElement = editable;
+  env.listeners.get('win:focusin')({ target: editable, relatedTarget: null });
+  env.win.visualViewport.height = 300;
+  env.win.visualViewport.fire('resize');
+  check('nokeyboard: no height on #root', env.root.style.height, '');
+  check('nokeyboard: no height on <html>', env.documentElement.style.height, '');
+  check('nokeyboard: no height on <body>', env.body.style.height, '');
+  check('nokeyboard: the document is not locked', lockApplied(env), false);
+  check('nokeyboard: no settle passes are scheduled', env.timers.length, 0);
+  env.dispose();
+  check('nokeyboard: dispose leaves nothing behind', env.root.style.height, '');
+}
+
+// 14. The pack must read the reader's overrides and never write that property.
+//
+// The regression this pins: the readout API used to be published on the very
+// property the README tells readers to configure (`window.__dshMobileUx`), so the
+// first load consumed the overrides and replaced them with the API — after which
+// every documented override was silently ignored.
+{
+  const env = load({ options: { keyboard: false } });
+  check('options: keyboard override disables the height writer', env.root.style.height, '');
+  check('options: the override property is still the reader\'s',
+    env.win.__dshMobileUxOptions?.keyboard, false);
+  check('options: the readout API lives on its own property',
+    typeof env.win.__dshMobileUx?.metrics, 'function');
+  check('options: the API did not take over the override property',
+    typeof env.win.__dshMobileUx.keyboard, 'undefined');
+  env.dispose();
+  check('options: the override survives disposal', env.win.__dshMobileUxOptions?.keyboard, false);
+}
+
+// 15. A keep-list is exclusive, and the readout is not part of it.
+//
+// `?dshMobileUx=tap,hud` reads like "tap plus the readout"; it is really "only the
+// tap section, and show the readout". The readout must never cost a section.
+{
+  const tapOnly = load({ search: '?dshMobileUx=tap' });
+  const editable = tapOnly.makeEditable();
+  tapOnly.document.activeElement = editable;
+  tapOnly.listeners.get('win:focusin')({ target: editable, relatedTarget: null });
+  tapOnly.win.visualViewport.height = 300;
+  tapOnly.win.visualViewport.fire('resize');
+  check('keep-list: a named section disables the others', tapOnly.root.style.height, '');
+  check('keep-list: the tap listener is installed', tapOnly.listeners.has('win:pointerup'), true);
+  check('keep-list: no trajectory observer', tapOnly.trajectoryObserverCallback, null);
+  tapOnly.dispose();
+
+  const withHud = load({ search: '?dshMobileUx=tap,hud' });
+  check('keep-list: hud does not turn the keyboard section off',
+    withHud.document.querySelector('[data-dsh-mobile-ux-hud]') !== null ||
+      withHud.body.children.some((child) => child.hasAttribute('data-dsh-mobile-ux-hud')), true);
+  withHud.dispose();
+}
+
+// 16. Disposal removes the scroll lock, which is a stylesheet and not an inline style.
+//
+// The regression this pins: disposal restored every inline property it had written
+// but never removed `LOCK_STYLES`, so disabling the pack with the keyboard open left
+// `#root` fixed and the document unscrollable until a full page reload.
+{
+  const env = load();
+  const editable = env.makeEditable();
+  env.document.activeElement = editable;
+  env.listeners.get('win:focusin')({ target: editable, relatedTarget: null });
+  env.win.visualViewport.height = 300;
+  env.win.visualViewport.fire('resize');
+  check('dispose: the lock is on while the keyboard is open', lockApplied(env), true);
+  env.dispose();
+  check('dispose: the lock is removed', lockApplied(env), false);
+  check('dispose: the height is restored', env.root.style.height, '');
+}
+
+// 17. Reopening a drawer at the same height still re-follows the pane.
+//
+// The regression this pins: `noteTrajectoryPane` returned early whenever the pane's
+// height matched the last one it had measured, but a hidden pane (measured 0x0) was
+// never recorded. Closing and reopening the drawer at the same height therefore
+// looked like "no change" and the panel stayed parked mid-history.
+{
+  const env = load({ deferFrames: true });
+  const pane = env.makeElement('div');
+  pane.setAttribute('data-trajectory-scroll', '');
+  pane.clientHeight = 685;
+  pane.scrollHeight = 1698;
+  pane.scrollTop = 365;
+  let rowHits = 0;
+  const row = env.makeElement('div');
+  row.setAttribute('data-record-index', '7');
+  row.scrollIntoView = () => {
+    rowHits += 1;
+    pane.scrollTop = pane.scrollHeight - pane.clientHeight;
+  };
+  pane.querySelectorAll = (selector) => (selector.includes('record-index') ? [row] : []);
+  env.document.querySelector = (selector) => (selector.includes('trajectory') ? pane : null);
+  env.document.querySelectorAll = (selector) =>
+    selector.includes('trajectory') ? [pane] : [];
+
+  env.trajectoryObserverCallback();
+  env.trajectoryResizeCallback([{ target: pane }]);
+  for (const timer of env.timers.slice()) timer.fn();
+  const firstOpen = rowHits;
+
+  // The drawer closes (the pane measures 0x0) and reopens at the same height.
+  pane.clientHeight = 0;
+  env.trajectoryResizeCallback([{ target: pane }]);
+  pane.clientHeight = 685;
+  pane.scrollTop = 365;
+  env.timers.length = 0;
+  env.trajectoryResizeCallback([{ target: pane }]);
+  check('reopen: the tail is chased again', env.timers.length > 0, true);
+  for (const timer of env.timers.slice()) timer.fn();
+  check('reopen: the panel reaches its tail again', rowHits > firstOpen, true);
+  env.dispose();
 }
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

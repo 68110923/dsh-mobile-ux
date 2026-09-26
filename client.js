@@ -1,24 +1,26 @@
 /**
  * dsh-mobile-ux — client half.
  *
- * A mobile-first UX pack for the DeepSeek Harness Web shell. Four sections, each
+ * A mobile-first UX pack for the DeepSeek Harness Web shell. Five sections, each
  * independently switchable, each readable on its own:
  *
  *   §1 narrow-screen layout    settings dialog, composer bar, floating sidebar
  *                              drawer and its scrim (<= 700px).
  *   §2 iOS keyboard & viewport visual-viewport height following, document scroll
- *                              lock, and the settle passes that remove the empty
- *                              band left behind by a moving keyboard.
+ *                              lock, and the focus watchdog that re-asserts the
+ *                              height after a keyboard settles.
  *   §3 sidebar single tap      one tap opens a session; a second, fast tap no
  *                              longer falls through to rename.
  *   §4 trajectory tail         the trajectory panel opens on its newest entry
  *                              instead of somewhere in the middle of history.
+ *   §5 zoom pin                the viewport meta gets `maximum-scale=1`, so the
+ *                              iOS focus-zoom cannot magnify the whole page.
  *
  * What this pack deliberately does NOT do: change any text size. An earlier
  * version raised the composer's font size on touch devices to defeat the iOS
  * focus-zoom, which is both a visible change the reader did not ask for and a
- * fight with the product's own font-size setting (12..17px). Interactive-widget
- * and scroll handling cover the same ground without writing typography.
+ * fight with the product's own font-size setting (12..17px). §5 covers the same
+ * ground by limiting the scale instead of writing typography.
  *
  * Credits and upstream projects
  * -----------------------------
@@ -34,14 +36,16 @@
  * --------
  * `?dshMobileUx=0` disables the pack. A comma-separated list otherwise:
  *
- *   layout | keyboard | tap | trajectory   keep only the listed sections
- *   nolayout | nokeyboard | notap | notrajectory   drop the listed sections
+ *   layout | keyboard | tap | trajectory | zoom   keep only the listed sections
+ *   nolayout | nokeyboard | notap | notrajectory | nozoom   drop the listed ones
  *   keepdrawer   leave the sidebar drawer open after a session tap
  *   lock | nolock    document scroll lock while the keyboard is open
  *   freezoom         let the page be magnified (by default the scale is pinned)
  *   hud              show the live readout
  *
- * The same switches can be set before load as `window.__dshMobileUx = {...}`.
+ * The same switches can be set before load as `window.__dshMobileUxOptions = {...}`
+ * — a separate property from the `window.__dshMobileUx` readout API this pack
+ * publishes afterwards, so the two can never overwrite each other.
  */
 
 window.__ModuleLoader__.load({
@@ -72,6 +76,23 @@ window.__ModuleLoader__.load({
     const TAIL_THRESHOLD_PX = 2;
 
     /**
+     * Re-assertion delays after the keyboard changes state (§2).
+     *
+     * The keyboard sometimes finishes animating without a viewport event arriving
+     * afterwards, so the last measurement is taken while it is still moving and its
+     * height is stale — which leaves a band of empty space no further input clears.
+     * These passes live inside the keyboard animation window.
+     */
+    const SETTLE_PASS_MS = [100, 250, 500, 900, 1500];
+
+    /**
+     * How many frames the post-focus watchdog keeps sampling (§2).
+     *
+     * About 1.5 seconds at 60Hz, covering a focus-zoom that never reports itself.
+     */
+    const HEIGHT_WATCHDOG_FRAMES = 90;
+
+    /**
      * Re-assertion delays after a trajectory panel opens (§4).
      *
      * The product already scrolls its table to the end on mount, but a virtualised
@@ -99,28 +120,23 @@ window.__ModuleLoader__.load({
      */
     const SESSION_ROW_PREFIX = 'session:';
 
-    /** The CSS custom property other packages may read as the live shell height. */
+    /** The CSS custom property the fixed `#root` takes its height from. */
     const HEIGHT_VARIABLE = '--dsh-app-visual-height';
 
     /**
-     * How far the platform has panned its visual viewport, as a transform.
+     * How far the platform has panned its visual viewport.
      *
      * iOS does not only shrink the visual viewport when a keyboard opens; it also
      * slides it, and the shell stays anchored to the *layout* viewport. The result
      * is a band of nothing between the composer and the keyboard: the app sits at
      * the top of the layout viewport while the visible window has moved down.
-     * Lifting the shell by the same amount puts its bottom edge back on the
-     * keyboard's top edge.
+     * `#root` is fixed, so shifting its `top` by the same amount keeps its bottom
+     * edge on the keyboard's top edge. The height stays exactly the visible height
+     * — a pan is never compensated by growing the box.
      */
     const PAN_VARIABLE = '--dsh-mux-pan';
 
-
     // ---------------------------------------------------------------- styles --
-
-    /**
-     * Documents the custom property written by §2.
-     */
-    const HEIGHT_STYLES = `:root { ${HEIGHT_VARIABLE}: 100%; ${PAN_VARIABLE}: 0px; }\n`;
 
     /**
      * Locks the document itself while an overlay keyboard is up (§2).
@@ -148,7 +164,7 @@ window.__ModuleLoader__.load({
       // Taking `#root` out of the flow removes the slack entirely: a fixed box
       // cannot be scrolled, so there is nowhere for the blank band to come from and
       // the footer stays on the keyboard's top edge. Its height is the visible
-      // height, which the follower above writes.
+      // height, which the follower below writes.
       'body > #root {\n' +
       '  position: fixed;\n' +
       `  top: var(${PAN_VARIABLE}, 0px);\n` +
@@ -182,7 +198,7 @@ window.__ModuleLoader__.load({
      * 4. A scrim over the conversation while the drawer is open.
      */
     const LAYOUT_STYLES =
-'/* ── mobile UI fixes (≤700px) ── */\n' +
+      '/* ── mobile UI fixes (≤700px) ── */\n' +
       '@media (max-width: 700px) {\n' +
       '  /* 1. Settings panel: stacked full-screen layout */\n' +
       '  [role="dialog"][aria-modal="true"][aria-labelledby] {\n' +
@@ -321,42 +337,62 @@ window.__ModuleLoader__.load({
      * one section, `?dshMobileUx=nokeyboard` removes one, and everything else
      * keeps its default. Programmatic overrides win over the URL.
      *
+     * A keep-list is exclusive — naming one section turns the others off. That is
+     * the point (`?dshMobileUx=tap` is "only the tap fix"), but it also means
+     * `?dshMobileUx=tap,hud` silently drops the keyboard follower. `hud`, `lock`
+     * and `zoom` are therefore read as modifiers that never take part in the
+     * keep-list: they can only be opted into or out of by name.
+     *
      * @returns {{ layout: boolean, keyboard: boolean, tap: boolean,
-     *   trajectory: boolean, hud: boolean, lock: boolean, meta: boolean }}
+     *   trajectory: boolean, zoom: boolean, hud: boolean, lock: boolean }}
      */
     function readPackSwitches() {
       const raw = new URL(window.location.href).searchParams.get('dshMobileUx');
       const parts = (raw ?? '').split(',').map((part) => part.trim()).filter(Boolean);
       const off = parts.includes('0') || parts.includes('off');
+      /**
+       * The reader's own overrides, set before this bundle runs. Deliberately a
+       * different property from `window.__dshMobileUx`, which this pack owns.
+       */
+      const options = window.__dshMobileUxOptions ?? {};
       const keep = parts.filter(
-        (part) =>
-          !part.startsWith('no') &&
-          !['0', 'off', 'hud', 'lock', 'meta'].includes(part),
+        (part) => !part.startsWith('no') && !['0', 'off', 'hud', 'lock', 'zoom'].includes(part),
       );
       /**
+       * A section: on by default, off when named in the keep-list's complement.
+       *
        * @param name - switch name, also the `no<name>` spelling.
        * @param fallback - value when the URL says nothing.
        * @returns the resolved switch.
        */
-      /**
-       * @param name - switch name; the default is on unless `free<name>` is given.
-       * @returns true unless the URL opted out with `free<name>`.
-       */
-      const pickDefaultOn = (name) => {
-        if (off) return false;
-        if (window.__dshMobileUx?.[name] !== undefined) return Boolean(window.__dshMobileUx[name]);
-        return !parts.includes(`free${name}`);
-      };
       const pick = (name, fallback) => {
         if (off) return false;
-        if (window.__dshMobileUx?.[name] !== undefined) return Boolean(window.__dshMobileUx[name]);
+        if (options[name] !== undefined) return Boolean(options[name]);
         if (parts.includes(`no${name}`)) return false;
         if (keep.length > 0) return keep.includes(name);
         return fallback;
       };
+      /**
+       * A modifier: on by default, but never inferred from the keep-list.
+       *
+       * @param name - switch name; opted out with `free<name>`.
+       * @returns true unless the URL or the reader turned it off.
+       */
+      const pickModifier = (name) => {
+        if (off) return false;
+        if (options[name] !== undefined) return Boolean(options[name]);
+        if (parts.includes(`no${name}`)) return false;
+        return !parts.includes(`free${name}`);
+      };
+      /**
+       * A readout: off unless asked for.
+       *
+       * @param name - switch name.
+       * @returns true only when the URL or the reader asked for it.
+       */
       const optIn = (name) => {
         if (off) return false;
-        if (window.__dshMobileUx?.[name] !== undefined) return Boolean(window.__dshMobileUx[name]);
+        if (options[name] !== undefined) return Boolean(options[name]);
         if (parts.includes(`no${name}`)) return false;
         return parts.includes(name);
       };
@@ -371,9 +407,9 @@ window.__ModuleLoader__.load({
         closeDrawer: pick('closeDrawer', true),
         hud: optIn('hud'),
         lock: pick('lock', true),
-        // Pinning the scale is what stops the page being magnified when an
-        // editable below 16px takes focus; `?dshMobileUx=freezoom` opts out.
-        meta: pickDefaultOn('zoom'),
+        // §5, pinning the page scale, is a modifier rather than a section: it
+        // cannot be asked for by name in a keep-list, only switched off.
+        zoom: pickModifier('zoom'),
       };
     }
 
@@ -397,8 +433,6 @@ window.__ModuleLoader__.load({
         scrollY: window.scrollY,
         /** Actual rendered height of the app root. */
         rootHeight: root === null ? 0 : root.clientHeight,
-        /** Height currently written by this plugin. */
-        appliedHeight: document.documentElement.style.height,
         /** Scroll height of the document, i.e. how far it could scroll. */
         documentScrollHeight: document.documentElement.scrollHeight,
       };
@@ -554,7 +588,6 @@ window.__ModuleLoader__.load({
       };
     }
 
-
     /**
      * Installs the pack.
      *
@@ -570,7 +603,16 @@ window.__ModuleLoader__.load({
       if (root === null) return () => {};
 
       const switches = readPackSwitches();
-      if (!switches.layout && !switches.keyboard && !switches.tap) return () => {};
+      // Every section resolves to a boolean, so this is the one place that has to
+      // know which of them exist. `trajectory` and `zoom` are sections too, not
+      // extras: with every one of them off the pack must write nothing at all.
+      const anySection =
+        switches.layout ||
+        switches.keyboard ||
+        switches.tap ||
+        switches.trajectory ||
+        switches.zoom;
+      if (!anySection) return () => {};
 
       /**
        * Keeps the tail of the trajectory panel in view (§4).
@@ -586,7 +628,21 @@ window.__ModuleLoader__.load({
        * intention, and fighting it would be worse than the original bug.
        */
       const trajectoryPanes = new WeakMap();
-      let trajectoryTimers = [];
+      /**
+       * Every pending timed pass, so disposal and a new panel both cancel exactly
+       * the timers this section started. Per pane rather than one flat list: two
+       * panes must not cancel each other's passes.
+       */
+      const trajectoryTimers = new Map();
+      /**
+       * The panes currently being followed.
+       *
+       * Kept separately from {@link trajectoryTimers} because a pane keeps being
+       * followed after its last timer has fired — the watchdog frames and their
+       * `following` reset are still in flight — and those are exactly the writes
+       * that must stop when the reader scrolls up.
+       */
+      const trajectoryFollowing = new Set();
       /**
        * Per-pane state for §4.
        *
@@ -598,11 +654,12 @@ window.__ModuleLoader__.load({
         if (state === undefined) {
           state = {
             away: false,
-            following: false,
+            generation: 0,
+            landedAt: null,
             measuredHeight: -1,
-            watched: false,
+            hidden: true,
+            onScroll: null,
             watchFrames: 0,
-            rafId: 0,
           };
           trajectoryPanes.set(pane, state);
         }
@@ -616,40 +673,65 @@ window.__ModuleLoader__.load({
        * distance test fires immediately and disables the correction meant to run next.
        * Only a scroll the pack did not cause counts.
        *
+       * Installed as soon as the pane is registered rather than when the watchdog
+       * retires: a scroll landing where the pack just wrote the pane is the pack's
+       * own write coming back, so a reader's swipe is never mistaken for it however
+       * soon it arrives.
+       *
        * @param pane - the trajectory scroll container.
        */
       const watchTrajectoryIntent = (pane) => {
         const state = trajectoryState(pane);
-        if (state.watched) return;
-        state.watched = true;
-        pane.addEventListener(
-          'scroll',
-          () => {
-            if (state.following) return;
-            const distance = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
-            if (distance > Math.max(TAIL_THRESHOLD_PX, pane.clientHeight / 2)) state.away = true;
-          },
-          { passive: true },
-        );
+        if (state.onScroll !== null) return;
+        state.onScroll = () => {
+          // A scroll event that lands exactly where this pack just put the pane is
+          // the pack's own write coming back. Comparing positions rather than
+          // consulting a "we are writing" flag matters: the flag is cleared on the
+          // next frame, so a reader's swipe arriving inside that frame would be
+          // mistaken for the pack's own scroll and silently swallowed.
+          if (state.landedAt !== null && Math.abs(pane.scrollTop - state.landedAt) < 1) return;
+          const distance = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
+          if (distance > Math.max(TAIL_THRESHOLD_PX, pane.clientHeight / 2)) {
+            // Stop the pending passes as well as the flag: a pass queued a moment
+            // ago would otherwise put the pane straight back on its tail, which is
+            // exactly the fight this section refuses to pick.
+            state.away = true;
+            stopTrajectoryFollow(pane);
+          }
+        };
+        pane.addEventListener('scroll', state.onScroll, { passive: true });
       };
       /**
-       * @returns every laid-out trajectory pane that still wants its tail.
+       * Stops following one pane and unhooks everything §4 attached to it.
        *
-       * A pane inside a collapsed drawer measures 0x0; treating that as a settled pane
-       * is what previously consumed the one attempt a pane ever got, so the follower
-       * skips such a pane *without* recording it as handled and returns when it has a
-       * size.
+       * @param pane - the trajectory scroll container.
        */
-      const tailFollowablePanes = () => {
-        const panes = [];
-        for (const pane of document.querySelectorAll('[data-trajectory-scroll]')) {
-          if (pane.clientHeight <= 0) continue;
-          if (pane.scrollHeight <= pane.clientHeight + TAIL_THRESHOLD_PX) continue;
-          if (trajectoryState(pane).away) continue;
-          panes.push(pane);
+      const stopTrajectoryFollow = (pane) => {
+        const state = trajectoryState(pane);
+        trajectoryFollowing.delete(pane);
+        // Bumping the generation retires every frame already in flight. That is
+        // stronger than cancelling the last id: `putTrajectoryOnTail` queues its own
+        // frame to clear `following`, and a frame that has run leaves no id behind,
+        // so an id-based cancel cannot reach everything the watchdog scheduled.
+        state.generation += 1;
+        state.watchFrames = 0;
+        for (const timer of trajectoryTimers.get(pane) ?? []) window.clearTimeout(timer);
+        trajectoryTimers.delete(pane);
+        if (state.onScroll !== null) {
+          pane.removeEventListener('scroll', state.onScroll);
+          state.onScroll = null;
         }
-        return panes;
       };
+      /**
+       * @returns true while the pane is still part of the document.
+       *
+       * A pane inside a collapsed drawer measures 0x0 and must keep its state; a
+       * pane React has thrown away must lose it, or its pending passes keep
+       * scrolling an orphan.
+       *
+       * @param pane - the trajectory scroll container.
+       */
+      const paneConnected = (pane) => pane.parentNode !== null;
       /**
        * Puts one pane on its tail and remembers the range it settled at.
        *
@@ -657,22 +739,22 @@ window.__ModuleLoader__.load({
        */
       const putTrajectoryOnTail = (pane) => {
         const state = trajectoryState(pane);
-        state.following = true;
-        try {
-          // The virtualised rows carry `data-record-index` on `div`s, so this is a
-          // plain attribute selector rather than a `tr` one.
-          const rows = pane.querySelectorAll('[data-record-index]');
-          const last = rows[rows.length - 1] ?? null;
-          if (last !== null) last.scrollIntoView({ block: 'end', behavior: 'auto' });
-          // Write the offset as well: a virtualised list can ignore the first attempt,
-          // and doing both is idempotent when both work.
-          pane.scrollTop = pane.scrollHeight;
-        } finally {
-          // The browser dispatches the resulting scroll event asynchronously.
-          window.requestAnimationFrame(() => {
-            state.following = false;
-          });
-        }
+        // The virtualised rows carry `data-record-index` on `div`s, so this is a
+        // plain attribute selector rather than a `tr` one.
+        const rows = pane.querySelectorAll('[data-record-index]');
+        const last = rows[rows.length - 1] ?? null;
+        if (last !== null) last.scrollIntoView({ block: 'end', behavior: 'auto' });
+        // Write the offset as well: a virtualised list can ignore the first attempt,
+        // and doing both is idempotent when both work.
+        pane.scrollTop = pane.scrollHeight;
+        // Remember where this write landed, so the intent listener can tell the
+        // scroll event it is about to receive apart from one the reader caused.
+        state.landedAt = pane.scrollTop;
+        // The browser dispatches the resulting scroll event asynchronously, so the
+        // mark has to survive at least one frame.
+        window.requestAnimationFrame(() => {
+          state.landedAt = null;
+        });
       };
       /**
        * Walks the tail down as the list grows.
@@ -685,17 +767,20 @@ window.__ModuleLoader__.load({
        *
        * @param pane - the pane being followed.
        */
-      const runTrajectoryWatchdog = (pane) => {
+      const runTrajectoryWatchdog = (pane, generation) => {
         const state = trajectoryState(pane);
-        if (state.watchFrames <= 0) return;
+        // Two ways a frame becomes stale: the pane stopped being followed, or this
+        // frame was queued by an earlier run of the watchdog.
+        if (generation !== state.generation) return;
+        if (state.watchFrames <= 0 || state.away) return;
         state.watchFrames -= 1;
         // The intent is "stay on the tail", not "be within N pixels of it": once the
         // pack has put a pane on its tail, later rows extend the range *below* the
         // current offset, so a distance test is false at exactly the moment the pane
-        // needs following. A deliberate scroll up clears this flag and ends it.
-        if (!state.away) putTrajectoryOnTail(pane);
-        state.rafId = window.requestAnimationFrame(() => {
-          runTrajectoryWatchdog(pane);
+        // needs following. A deliberate scroll up stops this loop entirely.
+        putTrajectoryOnTail(pane);
+        window.requestAnimationFrame(() => {
+          runTrajectoryWatchdog(pane, generation);
         });
       };
       /**
@@ -704,29 +789,29 @@ window.__ModuleLoader__.load({
        * @param pane - the pane that just became measurable.
        */
       const scheduleTrajectoryFollow = (pane) => {
-        const state = trajectoryState(pane);
+        // Follow exactly one pane: two watchdogs would each drag the other's pane
+        // around, and an earlier panel's pending passes would fire into a pane the
+        // reader has already left.
         cancelTrajectoryFollow();
+        const state = trajectoryState(pane);
+        trajectoryFollowing.add(pane);
+        watchTrajectoryIntent(pane);
         // A few timed passes catch the common case quickly...
-        for (const delay of TRAJECTORY_SETTLE_MS) {
-          trajectoryTimers.push(
+        trajectoryTimers.set(
+          pane,
+          TRAJECTORY_SETTLE_MS.map((delay) =>
             window.setTimeout(() => {
               putTrajectoryOnTail(pane);
             }, delay),
-          );
-        }
+          ),
+        );
         // ...and the watchdog covers a list that is still growing when they are done.
         state.watchFrames = TRAJECTORY_WATCH_FRAMES;
-        if (state.rafId === 0) runTrajectoryWatchdog(pane);
-        trajectoryTimers.push(
-          window.setTimeout(() => {
-            state.watchFrames = 0;
-            // Only now can a scroll mean something: the pack has stopped moving it.
-            watchTrajectoryIntent(pane);
-          }, TRAJECTORY_WATCH_FRAMES * 17 + 250),
-        );
+        runTrajectoryWatchdog(pane, state.generation);
       };
+      /** Stops every pane this section is following. */
       const cancelTrajectoryFollow = () => {
-        while (trajectoryTimers.length > 0) window.clearTimeout(trajectoryTimers.pop());
+        for (const pane of [...trajectoryFollowing]) stopTrajectoryFollow(pane);
       };
       /**
        * Reacts to a pane becoming measurable, which is when the panel actually opens.
@@ -735,8 +820,17 @@ window.__ModuleLoader__.load({
        */
       const noteTrajectoryPane = (pane) => {
         const state = trajectoryState(pane);
-        if (pane.clientHeight <= 0) return;
-        if (state.measuredHeight === pane.clientHeight) return;
+        if (pane.clientHeight <= 0) {
+          // A collapsed drawer parks the pane at 0x0. Remember that it was hidden,
+          // so that reopening it at the very same height is not mistaken for "no
+          // change" and skipped — which is what left a reopened panel parked in the
+          // middle of its history.
+          state.hidden = true;
+          return;
+        }
+        const reopened = state.hidden;
+        state.hidden = false;
+        if (!reopened && state.measuredHeight === pane.clientHeight) return;
         state.measuredHeight = pane.clientHeight;
         if (state.away) return;
         scheduleTrajectoryFollow(pane);
@@ -756,9 +850,15 @@ window.__ModuleLoader__.load({
             // A streaming chat mutates the DOM constantly; without this guard every
             // token would cost a querySelectorAll.
             if (doc.querySelector('[data-trajectory-scroll]') === null) return;
-            for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
+            const live = doc.querySelectorAll('[data-trajectory-scroll]');
+            for (const pane of live) {
               trajectoryResizeObserver?.observe(pane);
               noteTrajectoryPane(pane);
+            }
+            // Drop the state of panes React has removed: they cannot be followed
+            // any more, and their pending passes would fight the new panel.
+            for (const pane of [...trajectoryTimers.keys()]) {
+              if (!live.includes(pane)) stopTrajectoryFollow(pane);
             }
           })
         : null;
@@ -801,7 +901,7 @@ window.__ModuleLoader__.load({
        * @returns {() => void} restores the previous content attribute.
        */
       const applyViewportMeta = () => {
-        if (!switches.meta) return () => {};
+        if (!switches.zoom) return () => {};
         const meta = doc.querySelector('meta[name="viewport"]');
         if (meta === null) return () => {};
         const previousContent = meta.getAttribute('content') ?? '';
@@ -843,29 +943,34 @@ window.__ModuleLoader__.load({
       };
 
       /**
-       * Inline styles this module overwrites, so disposal restores them exactly.
+       * Every inline property §2 overwrites, so disposal restores it exactly.
        *
-       * A plain array, not a Map: `height` is written on three different elements
-       * and an element-keyed map would silently keep only the last one, leaving
-       * an inline height behind on dispose.
+       * A plain array, not a Map: the same property is written on three different
+       * elements, and an element-keyed map would silently keep only the last one,
+       * leaving an inline height behind on dispose.
        */
       const previous = [];
-      const ownedStyles = switches.keyboard
-        ? [
-            [documentElement, HEIGHT_VARIABLE],
-            [documentElement, PAN_VARIABLE],
-            [documentElement, 'height'],
-            [body, 'height'],
-            [root, 'height'],
-          ]
-        : [];
-      for (const [element, property] of ownedStyles) {
+      /**
+       * Remembers one property before this pack writes it.
+       *
+       * @param element - the element about to be written.
+       * @param property - the CSS property name.
+       */
+      const rememberStyle = (element, property) => {
         previous.push({
           element,
           property,
           value: element.style.getPropertyValue(property),
           priority: element.style.getPropertyPriority(property),
         });
+      };
+      // Only §2 writes inline styles, and only while it is enabled: with
+      // `nokeyboard` the pack must leave the document exactly as it found it.
+      if (switches.keyboard) {
+        rememberStyle(documentElement, 'height');
+        rememberStyle(body, 'height');
+        rememberStyle(root, 'height');
+        rememberStyle(documentElement, HEIGHT_VARIABLE);
       }
 
       /** Until when a follow-up tap on a session row must not rename (§3). */
@@ -883,17 +988,17 @@ window.__ModuleLoader__.load({
         layoutService = null;
       }
 
-      /** Last height actually written, so redundant events perform no writes. */
-      let applied = null;
       /** Frame guard shared by the caret/viewport settle path. */
       let frame = null;
       /** True while the document-level scroll lock is in force. */
       let locked = false;
+      /** The height §2 last pinned, or null when it is not pinning. */
+      let pinnedShellHeight = null;
       const history = [];
       const hud = switches.hud ? createHud() : null;
 
       /**
-       * The height the shell should have right now.
+       * Pins the shell to the visible height while §2 is on.
        *
        * Keyboard open → the visible area, floored. Two mistakes are baked into
        * this one decision, both learned on a real phone:
@@ -901,108 +1006,92 @@ window.__ModuleLoader__.load({
        * 1. Rounding up (`Math.round`) makes the document one pixel scrollable and
        *    hands iOS back the ability to scroll the composer away, so the pixel is
        *    floored.
-       * 2. *Adding* `offsetTop` to follow the pan makes the shell taller than the
-       *    visible area, and the excess shows up as a band of empty space between
-       *    the composer and the keyboard. Compensation for a pan must shrink the
-       *    shell, so when it is enabled at all it subtracts, and it can never grow
-       *    the shell past the visible height.
+       * 2. Compensating the visual-viewport pan by *growing* the box makes the shell
+       *    taller than the visible area, and the excess shows up as a band of empty
+       *    space between the composer and the keyboard. The pan is carried by the
+       *    fixed box's `top` instead, so the height is never anything but the
+       *    visible height.
        *
        * Keyboard closed → the layout height, which is what `height: 100%` already
        * resolves to, so a desktop window resize or a pinch-zoom pan is untouched.
        *
-       * @returns {number} shell height in CSS pixels.
-       */
-      const targetHeight = () => {
-        if (!keyboardOpen()) return window.innerHeight;
-        const viewport = window.visualViewport ?? null;
-        const visible = viewport === null ? window.innerHeight : viewport.height;
-        // Exactly the visible height. `#root` is fixed, so this is the height of the
-        // box the reader can actually see, and its bottom edge is the keyboard's top
-        // edge. No pan arithmetic: the box's own `top` carries that.
-        return Math.min(MAX_SHELL_HEIGHT, Math.max(1, Math.floor(visible)));
-      };
-      /**
-       * Pins the shell to {@link targetHeight}.
-       *
        * Always writes, even when the number is unchanged: an identical height does
-       * not imply an identical document, because iOS can drop the document's own
-       * scroll offset while the keyboard settles, and only a fresh write (with the
-       * scroll reset in the caller) collapses that leftover offset.
+       * not imply an identical document, because iOS can scroll the document while
+       * the keyboard settles, and only a fresh write plus the scroll clamp below
+       * collapses that leftover offset.
        */
       const applyHeight = () => {
-        const value = `${targetHeight()}px`;
-        applied = value;
+        if (!switches.keyboard) return;
+        const visible = window.visualViewport?.height ?? window.innerHeight;
+        const height = keyboardOpen()
+          ? Math.min(MAX_SHELL_HEIGHT, Math.max(1, Math.floor(visible)))
+          : window.innerHeight;
+        const value = `${height}px`;
+        pinnedShellHeight = value;
         documentElement.style.height = value;
         body.style.height = value;
         root.style.height = value;
         documentElement.style.setProperty(HEIGHT_VARIABLE, value);
         // Follow the platform's visual-viewport pan (see PAN_VARIABLE). Applied only
         // while the keyboard is open, because a pan with no keyboard is just the
-        // reader moving around a zoomed page and must not be fought. The height
-        // above carries the same value, so the two cancel out on screen.
+        // reader moving around a zoomed page and must not be fought.
         const pan = keyboard.open ? Math.max(0, window.visualViewport?.offsetTop ?? 0) : 0;
         documentElement.style.setProperty(PAN_VARIABLE, `${pan}px`);
         // The clamp. A viewport whose scrollHeight exceeds its clientHeight is
         // slack, and slack is where the blank band between the composer and the
-        // keyboard comes from: iOS pans into the leftover instead of letting the
+        // keyboard comes from: iOS scrolls into the leftover instead of letting the
         // shell end at the keyboard's top edge. Zeroing the offset makes the
         // document unscrollable again, whatever the pan did.
-        if (window.scrollY !== 0) window.scrollTo(0, 0);
+        if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
         if (documentElement.scrollTop !== 0) documentElement.scrollTop = 0;
         if (body.scrollTop !== 0) body.scrollTop = 0;
       };
 
       /**
-       * Undoes a document scroll that iOS performed to follow the caret.
+       * One line describing the geometry the reader is looking at.
        *
-       * A zoomed viewport is no reason to skip this: the reported bug — the
-       * composer sliding behind the keyboard — happens while iOS has the page
-       * zoomed in, which is precisely when the document must not be left scrolled.
+       * Shared by the history and the readout: they used to build the same fields
+       * twice, which is how a stale `wrote=` survived in both.
        *
-       * @returns true when a non-zero scroll position was found.
+       * @param metrics - a {@link readMetrics} snapshot.
+       * @returns the line.
        */
-      const resetDocumentScroll = () => {
-        if (window.scrollX === 0 && window.scrollY === 0) return false;
-        // No resetting guard is needed: a scroll event caused by this call sees
-        // scrollX/scrollY back at 0 and returns immediately.
-        window.scrollTo(0, 0);
-        return true;
-      };
+      const geometryLine = (metrics) =>
+        `vvH=${Math.round(metrics.visualHeight)} ref=${Math.round(keyboard.referenceHeight)}` +
+        ` lvh=${metrics.layoutHeight} root=${metrics.rootHeight}` +
+        ` wrote=${pinnedShellHeight ?? '-'} y=${metrics.scrollY}` +
+        ` oT=${Math.round(metrics.offsetTop)} docH=${metrics.documentScrollHeight}`;
 
       /** Records an interesting change, so a phone screenshot tells the story. */
       const note = (reason) => {
+        if (hud === null) return;
         const metrics = readMetrics();
-        const ref = Math.round(keyboard.referenceHeight);
-        history.push(
-          `#${history.length + 1} ${reason}` +
-            ` vvH=${Math.round(metrics.visualHeight)} ref=${ref} lvh=${metrics.layoutHeight}` +
-            ` root=${metrics.rootHeight} wrote=${metrics.appliedHeight || '-'}` +
-            ` y=${metrics.scrollY} oT=${Math.round(metrics.offsetTop)}` +
-            ` docH=${metrics.documentScrollHeight}`,
-        );
+        const line = `#${history.length + 1} ${reason} ${geometryLine(metrics)}`;
+        // Consecutive samples that say the same thing carry no information; the
+        // watchdog alone would otherwise fill the whole buffer with copies.
+        if (history[history.length - 1] !== line) history.push(line);
         if (history.length > 40) history.shift();
         // Keep the readout present even when nothing has gone wrong yet: the
         // interesting moment is a state the user is looking at, not an event.
-        report(metrics, ref);
+        report(metrics);
       };
 
       /** Draws the optional readout for the state the user is looking at. */
-      const report = (metrics, ref) => {
+      const report = (metrics) => {
         if (hud === null) return;
-        const switches =
+        const flags =
           `kb=${keyboardOpen() ? 1 : 0} focus=${editableFocused() ? 1 : 0}` +
           ` lock=${locked ? 1 : 0}` +
-          ` meta=${switches.meta ? 1 : 0}`;
-        const position =
-          `y=${metrics.scrollY} oT=${Math.round(metrics.offsetTop)}` +
-          ` s=${metrics.scale.toFixed(2)} docH=${metrics.documentScrollHeight}`;
+          ` zoom=${switches.zoom ? 1 : 0}`;
         hud.update(
           [
             'dsh-mobile-ux',
-            `vvH=${Math.round(metrics.visualHeight)} ref=${ref} lvh=${metrics.layoutHeight}`,
-            `root=${metrics.rootHeight} wrote=${metrics.appliedHeight || '-'}`,
-            switches,
-            position,
+            `vvH=${Math.round(metrics.visualHeight)} ref=${Math.round(keyboard.referenceHeight)}` +
+              ` lvh=${metrics.layoutHeight}`,
+            `root=${metrics.rootHeight} wrote=${pinnedShellHeight ?? '-'}`,
+            flags,
+            `y=${metrics.scrollY} oT=${Math.round(metrics.offsetTop)}` +
+              ` s=${metrics.scale.toFixed(2)} docH=${metrics.documentScrollHeight}`,
             `win=${window.innerWidth}x${window.innerHeight}` +
               ` scr=${window.screen?.width ?? '?'}x${window.screen?.height ?? '?'}`,
             ...history.slice(-6),
@@ -1015,10 +1104,13 @@ window.__ModuleLoader__.load({
        *
        * This is what stops iOS from moving the shell: while the lock is on, the
        * layout viewport cannot scroll, so the only thing that can move is the
-       * visual viewport — which `targetHeight` follows.
+       * visual viewport — which the pinned height follows.
+       *
+       * The lock belongs to §2: with `nokeyboard` there is no follower to keep
+       * still, so nothing here may be touched at all.
        */
       const toggleScrollLock = () => {
-        const wanted = switches.lock && keyboard.open;
+        const wanted = switches.keyboard && switches.lock && keyboard.open;
         if (wanted === locked) return;
         locked = wanted;
         setScrollLock(locked);
@@ -1029,6 +1121,10 @@ window.__ModuleLoader__.load({
        * animation frame leaves the old height in place for one frame, and that
        * is exactly the window in which iOS scrolls the page after the caret
        * moved.
+       *
+       * The document scroll clamp lives in `applyHeight`, which runs on every one
+       * of these events; a separate reset afterwards would be dead code, because
+       * the clamp has already put the offsets back to zero by the time it ran.
        */
       const onViewportChange = (reason) => {
         if (watchdogFrames > 0) {
@@ -1041,10 +1137,9 @@ window.__ModuleLoader__.load({
         toggleScrollLock();
         applyHeight();
         if (wasOpen !== keyboard.open) note(`kb=${keyboard.open ? 'open' : 'closed'}(${reason})`);
-        if (resetDocumentScroll()) note(`reset(${reason})`);
         // The readout must describe the state the user is looking at, not only
         // the events that happened to be interesting.
-        report(readMetrics(), Math.round(keyboard.referenceHeight));
+        report(readMetrics());
       };
 
       /** Coalesces caret/focus events that can arrive several times per keystroke. */
@@ -1065,8 +1160,8 @@ window.__ModuleLoader__.load({
        * afterwards, so the last measurement is taken while the keyboard is still
        * moving and its height is stale. That stale value leaves a band of empty
        * space between the composer and the keyboard which no further input ever
-       * clears. The passes live inside the keyboard animation window
-       * (100/250/500/900 ms), where a handful of extra style writes cost nothing.
+       * clears. The passes live inside the keyboard animation window, where a
+       * handful of extra style writes cost nothing.
        */
       const settlePassTimers = [];
       /**
@@ -1076,25 +1171,26 @@ window.__ModuleLoader__.load({
        * focus-zoom without any `visualViewport.resize` arriving (an event probe
        * during a simulated focus-zoom recorded zero events), and a height that is
        * never recomputed is one of the two ways the blank band appears. So for a
-       * second after each focus change the follower also samples every frame: a
-       * comparison against the last written value makes the extra work nearly free.
+       * second after each focus change the follower also samples every frame.
        */
       let watchdogFrames = 0;
       const startHeightWatchdog = () => {
-        watchdogFrames = 90;
+        watchdogFrames = HEIGHT_WATCHDOG_FRAMES;
+      };
+      /** Drops every pending settle pass. */
+      const cancelSettlePasses = () => {
+        while (settlePassTimers.length > 0) window.clearTimeout(settlePassTimers.pop());
       };
       const scheduleSettlePasses = () => {
-        while (settlePassTimers.length > 0) window.clearTimeout(settlePassTimers.pop());
-        for (const delay of [100, 250, 500, 900, 1500]) {
+        if (!switches.keyboard) return;
+        cancelSettlePasses();
+        for (const delay of SETTLE_PASS_MS) {
           settlePassTimers.push(
             window.setTimeout(() => {
               onViewportChange(`settle+${delay}`);
             }, delay),
           );
         }
-      };
-      const cancelSettlePasses = () => {
-        while (settlePassTimers.length > 0) window.clearTimeout(settlePassTimers.pop());
       };
 
       const handleViewport = () => {
@@ -1256,7 +1352,13 @@ window.__ModuleLoader__.load({
         scheduleSettlePasses();
       };
       const handleSelection = () => settle('selection');
-      const handleScroll = () => onViewportChange('scroll');
+      const handleScroll = () => {
+        // The clamp inside `applyHeight` already zeroes the document offsets, so a
+        // plain page scroll has nothing left to correct. Skipping it keeps desktop
+        // scrolling from running the whole follower on every wheel tick.
+        if (!switches.keyboard || !editableFocused()) return;
+        onViewportChange('scroll');
+      };
 
       window.visualViewport?.addEventListener('resize', handleViewport);
       window.visualViewport?.addEventListener('scroll', handleViewport);
@@ -1306,6 +1408,11 @@ window.__ModuleLoader__.load({
         window.removeEventListener('scroll', handleScroll);
         if (frame !== null) window.cancelAnimationFrame(frame);
         cancelSettlePasses();
+        // The lock is a stylesheet, not an inline style, so restoring `previous`
+        // below cannot remove it: without this the document stays unscrollable and
+        // `#root` stays fixed until a full page reload.
+        locked = false;
+        setScrollLock(false);
         restoreViewportMeta();
         for (const record of previous) {
           if (record.value === '') {
@@ -1315,12 +1422,8 @@ window.__ModuleLoader__.load({
           }
         }
         hud?.remove();
-        lockElement.remove();
+        // Retires every pending pass and watchdog frame for every followed pane.
         cancelTrajectoryFollow();
-        for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
-          const state = trajectoryPanes.get(pane);
-          if (state?.rafId) window.cancelAnimationFrame(state.rafId);
-        }
         trajectoryObserver?.disconnect();
         trajectoryResizeObserver?.disconnect();
         if (window.__dshMobileUx === api) delete window.__dshMobileUx;

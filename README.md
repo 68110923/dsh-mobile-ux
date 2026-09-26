@@ -1,6 +1,6 @@
 # dsh-mobile-ux
 
-**DSH Web 壳层的手机端体验优化插件。** 把窄屏布局修复、iOS 键盘/输入框跟随、侧边栏单击切换会话三件事合成一个纯客户端插件：不改壳层源码、桌面端零影响、装一个就够。
+**DSH Web 壳层的手机端体验优化插件。** 把窄屏布局修复、iOS 键盘/输入框跟随、侧边栏单击切换会话、轨迹面板打开即到最新、页面缩放钉住五件事合成一个纯客户端插件：不改壳层源码、桌面端零影响、每一节都能单独关掉。
 
 > 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web profile 编写，在 iPhone + Safari（iOS 17）上实测打磨。
 >
@@ -72,15 +72,16 @@ systemctl restart dsh-web     # 或你的 dsh web 进程
 | 值 | 作用 |
 |---|---|
 | `0` / `off` | 整包不生效 |
-| `layout` / `keyboard` / `tap` | **只**保留列出的这几节 |
-| `nolayout` / `nokeyboard` / `notap` | 关掉列出的这几节 |
+| `layout` / `keyboard` / `tap` / `trajectory` | **只**保留列出的这几节（白名单，见下方提醒） |
+| `nolayout` / `nokeyboard` / `notap` / `notrajectory` | 关掉列出的这几节 |
 | `keepdrawer` | 单击切换后**不**自动收起侧边栏（默认会收起） |
-| `notrajectory` | 关掉「轨迹打开即到最新」 |
-| `freezoom` | 允许页面被放大（默认会钉住缩放） |
+| `freezoom` / `nozoom` | 允许 / 禁止页面被放大（默认钉住缩放） |
 | `nolock` | 键盘打开时不锁文档滚动 |
 | `hud` | 左上角显示实时读数 |
 
-例：`?dshMobileUx=nokeyboard`、`?dshMobileUx=tap,hud`。也可以在加载前用 `window.__dshMobileUx = { keyboard: false }` 覆盖。
+例：`?dshMobileUx=nokeyboard`、`?dshMobileUx=nolayout,hud`。也可以在加载前用 `window.__dshMobileUxOptions = { keyboard: false }` 覆盖（**注意是 `…Options`**：`window.__dshMobileUx` 是插件自己的读数 API，写在另一个属性上，两者互不覆盖）。
+
+> ⚠️ **白名单是排他的**：`?dshMobileUx=tap` 的含义是「**只**留单击切换」，连键盘跟随一起关掉。想让某一节失效请用 `no<节名>`。`hud` / `lock` / `zoom` 是修饰开关，不参与白名单，所以 `?dshMobileUx=tap,hud` 是安全的。
 
 **为什么钉住缩放**：iOS 对小于 16px 的可编辑元素会在聚焦时放大整页，这是浏览器行为，无法靠布局纠正。能压住它的只有两个手段——改字号（已否决，那会覆盖产品与用户的设置）或限制缩放。后者不动任何文字大小，只限制缩放倍率，是唯一同时满足这两条的选择；代价是双指缩放也不再可用（`?dshMobileUx=freezoom` 可以换回来）。
 
@@ -89,11 +90,18 @@ systemctl restart dsh-web     # 或你的 dsh web 进程
 ## 开发与验证
 
 ```bash
-node tools/client.test.mjs     # 28 项纯逻辑断言
+node tools/client.test.mjs     # 72 项纯逻辑断言
 node --check client.js         # 语法
 ```
 
 `tools/` 里另有几个用 CDP 直连无头 Chromium 的探针脚本（不改仓库、不装依赖，Node 22 自带 WebSocket）：测量真实 DOM 几何、模拟"可视区被裁"的键盘、验证滚动锁定没有破坏浮层定位。这些脚本是这个插件的来路：上面每一条结论都是用它们量出来的，而不是猜的。
+
+其中两个是给**真浏览器验证**用的，也各自写清了**它们证不了什么**：
+
+| 脚本 | 用途 | 证不了的 |
+|---|---|---|
+| `cdp-verify.mjs` | 打开运行中的 GUI，量 `visualViewport` / 外壳 / 输入框底边 / 文档余量 | 无头 Chromium 的 `Emulation` 会同时改两个视口，所以**造不出软键盘态**（那条路径由 `client.test.mjs` 的桩覆盖） |
+| `cdp-switches.mjs` | 在页面脚本之前注入 `window.__dshMobileUxOptions`，验证每个开关真的改变了页面 | 本站**无法验证 URL 开关**：壳层在 token 校验时把查询串吃掉了，地址栏最终是 `/` |
 
 ## 参考项目与致谢
 

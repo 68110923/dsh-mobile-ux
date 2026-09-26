@@ -205,9 +205,9 @@ systemctl restart dsh-web</code></pre>
         <h2 data-zh="开关" data-en="Switches">开关</h2>
         <p
           class="sub"
-          data-zh="URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUx = { keyboard: false } 覆盖。"
-          data-en="Append a comma-separated list to ?dshMobileUx=, or override before load with window.__dshMobileUx = { keyboard: false }."
-        >URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUx = { keyboard: false } 覆盖。</p>
+          data-zh="URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUxOptions = { keyboard: false } 覆盖（注意是 …Options——读数 API 在 window.__dshMobileUx 上，两者互不覆盖）。"
+          data-en="Append a comma-separated list to ?dshMobileUx=, or override before load with window.__dshMobileUxOptions = { keyboard: false }. Note the …Options suffix: the readout API lives on window.__dshMobileUx, and neither overwrites the other."
+        >URL 参数 ?dshMobileUx= 后接逗号分隔的值；也可以加载前用 window.__dshMobileUxOptions = { keyboard: false } 覆盖（注意是 …Options——读数 API 在 window.__dshMobileUx 上，两者互不覆盖）。</p>
         <div class="table-scroll">
           <table>
             <thead>
@@ -218,17 +218,22 @@ systemctl restart dsh-web</code></pre>
             </thead>
             <tbody>
               <tr><td><code>0</code> / <code>off</code></td><td data-zh="整包不生效" data-en="Install nothing at all">整包不生效</td></tr>
-              <tr><td><code>layout</code> / <code>keyboard</code> / <code>tap</code></td><td data-zh="只保留列出的这几节" data-en="Keep only the listed sections">只保留列出的这几节</td></tr>
-              <tr><td><code>nolayout</code> / <code>nokeyboard</code> / <code>notap</code></td><td data-zh="关掉列出的这几节" data-en="Drop the listed sections">关掉列出的这几节</td></tr>
+              <tr><td><code>layout</code> / <code>keyboard</code> / <code>tap</code> / <code>trajectory</code></td><td data-zh="只保留列出的这几节（白名单是排他的，见下方提醒）" data-en="Keep only the listed sections (the keep-list is exclusive; see the note below)">只保留列出的这几节（白名单是排他的，见下方提醒）</td></tr>
+              <tr><td><code>nolayout</code> / <code>nokeyboard</code> / <code>notap</code> / <code>notrajectory</code></td><td data-zh="关掉列出的这几节" data-en="Drop the listed sections">关掉列出的这几节</td></tr>
               <tr><td><code>keepdrawer</code></td><td data-zh="单击切换后不自动收起侧边栏" data-en="Leave the drawer open after a tap">单击切换后不自动收起侧边栏</td></tr>
               <tr><td><code>nolock</code></td><td data-zh="键盘打开时不锁文档滚动" data-en="Do not scroll-lock the document while the keyboard is up">键盘打开时不锁文档滚动</td></tr>
-              <tr><td><code>nofont</code></td><td data-zh="不做字号提升（防聚焦缩放）" data-en="Skip the font-size raise (the focus-zoom guard)">不做字号提升（防聚焦缩放）</td></tr>
-              <tr><td><code>meta</code></td><td data-zh="额外把 maximum-scale=1 写进 viewport meta（同时会禁掉双指缩放，默认关）" data-en="Also pin maximum-scale=1 in the viewport meta (this also disables pinch zoom, so it is off by default)">额外把 maximum-scale=1 写进 viewport meta（同时会禁掉双指缩放，默认关）</td></tr>
-              <tr><td><code>bottom</code></td><td data-zh="开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）" data-en="Enable visual-viewport pan compensation (off by default: it makes the shell taller than the visible area and leaves an empty band)">开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）</td></tr>
+              <tr><td><code>freezoom</code> / <code>nozoom</code></td><td data-zh="允许 / 禁止页面被放大。默认钉住缩放（maximum-scale=1），这是压住 iOS 聚焦放大的唯一手段，代价是双指缩放一并失效" data-en="Allow or forbid magnification. The scale is pinned by default (maximum-scale=1), the only way to stop the iOS focus-zoom; the price is that pinch zoom goes too">允许 / 禁止页面被放大。默认钉住缩放（maximum-scale=1），这是压住 iOS 聚焦放大的唯一手段，代价是双指缩放一并失效</td></tr>
               <tr><td><code>hud</code></td><td data-zh="左上角显示实时读数 vvH / root / kb / lock / y / oT" data-en="Show the live readout in the top-left corner: vvH / root / kb / lock / y / oT">左上角显示实时读数 vvH / root / kb / lock / y / oT</td></tr>
             </tbody>
           </table>
         </div>
+        <p class="note">
+          <strong data-zh="白名单是排他的：" data-en="The keep-list is exclusive:">白名单是排他的：</strong>
+          <span
+            data-zh="?dshMobileUx=tap 的含义是「只留单击切换」，连键盘跟随一起关掉——想让某一节失效请用 no&lt;节名&gt;。hud / lock / zoom 是修饰开关，不参与白名单。"
+            data-en="?dshMobileUx=tap means &quot;only single-tap switching&quot; and turns the keyboard follower off with everything else; to remove one section use no&lt;name&gt;. hud, lock and zoom are modifiers and never take part in a keep-list."
+          >?dshMobileUx=tap 的含义是「只留单击切换」，连键盘跟随一起关掉——想让某一节失效请用 no&lt;节名&gt;。hud / lock / zoom 是修饰开关，不参与白名单。</span>
+        </p>
       </section>
 
       <section id="credits">

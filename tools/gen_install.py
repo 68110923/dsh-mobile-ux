@@ -209,13 +209,13 @@ A(f'''      <section id="verify">
           </li>
           <li>
             <b data-zh="第二层：服务能解析它（这一步最容易被忽略）" data-en="Layer 2: the server can resolve it (the step people skip)">第二层：服务能解析它（这一步最容易被忽略）</b>
-            {term(C + '# 组装配置里应出现插件的行；出现 skipping profile bundle 就是没解析到' + CEND + '\\n<span class="tok-cmd">dsh</span> --profile web --dump-config | grep -A2 mobile-keyboard-viewport\\n<span class="tok-cmd">journalctl</span> -u dsh-web --since "-5 min" | grep -c "skipping profile bundle"   ' + C + '# 期望 0' + CEND, title_bilingual=("服务器", "server"), chip="verify")}
+            {term(C + '# 组装配置里应出现插件的行；出现 skipping profile bundle 就是没解析到' + CEND + '\\n<span class="tok-cmd">dsh</span> --profile web --dump-config | grep -A2 dsh-mobile-ux\\n<span class="tok-cmd">journalctl</span> -u dsh-web --since "-5 min" | grep -c "skipping profile bundle"   ' + C + '# 期望 0' + CEND, title_bilingual=("服务器", "server"), chip="verify")}
           </li>
           <li>
             <b data-zh="第三层：浏览器控制台里摸得到它" data-en="Layer 3: the browser exposes it">第三层：浏览器控制台里摸得到它</b>
             <span data-zh="在装了插件的页面里打开控制台（手机可用 Safari 的「检查」或地址栏 javascript: 前缀），执行："
                    data-en="Open the console on the instrumented page (Safari's inspector, or prefix an address-bar snippet with javascript:) and run:">在装了插件的页面里打开控制台（手机可用 Safari 的「检查」或地址栏 <code>javascript:</code> 前缀），执行：</span>
-            {term('typeof window.__dshMobileUx   ' + C + '# object 表示插件已执行' + CEND + '\\nwindow.__dshMobileUx.metrics()   ' + C + '# 打印可视视口、外壳高度等实时数据' + CEND, title_bilingual=("浏览器控制台", "browser console"), chip="console")}
+            {term('typeof window.__dshMobileUx   ' + C + '# object 表示插件已执行' + CEND + '\\nwindow.__dshMobileUx.metrics()   ' + C + '# 打印可视视口、外壳高度等实时数据' + CEND + '\\n' + C + '# 加载前覆盖某一节（与上面的读数 API 是两个属性，互不覆盖）：' + CEND + '\\nwindow.__dshMobileUxOptions = { keyboard: false }', title_bilingual=("浏览器控制台", "browser console"), chip="console")}
           </li>
           <li>
             <b data-zh="肉眼验收（手机上最直观）" data-en="By eye, which is fastest on a phone">肉眼验收（手机上最直观）</b>
@@ -250,11 +250,15 @@ A(f'''      <section id="switches">
               <tr><td><code>?dshMobileUx=0</code></td>
                 <td data-zh="整包临时停用（不改安装状态）" data-en="Disable the whole pack for that page load, without uninstalling">整包临时停用（不改安装状态）</td></tr>
               <tr><td><code>?dshMobileUx=notap</code></td>
-                <td data-zh="只关「单击切换会话」，保留其余两节" data-en="Keep everything except single-tap session switching">只关「单击切换会话」，保留其余两节</td></tr>
+                <td data-zh="只关「单击切换会话」，保留其余各节" data-en="Keep everything except single-tap session switching">只关「单击切换会话」，保留其余各节</td></tr>
+              <tr><td><code>?dshMobileUx=nokeyboard</code></td>
+                <td data-zh="关掉键盘跟随与滚动锁，其余各节照常" data-en="Turn off the keyboard follower and the scroll lock, keeping the rest">关掉键盘跟随与滚动锁，其余各节照常</td></tr>
               <tr><td><code>?dshMobileUx=notrajectory</code></td>
                 <td data-zh="关掉「轨迹打开即到最新」" data-en="Turn off the trajectory auto-scroll">关掉「轨迹打开即到最新」</td></tr>
               <tr><td><code>?dshMobileUx=freezoom</code></td>
                 <td data-zh="允许页面被放大（默认钉住缩放，防止聚焦时整页放大）" data-en="Allow magnification (by default the scale is pinned so focus cannot magnify the page)">允许页面被放大（默认钉住缩放，防止聚焦时整页放大）</td></tr>
+              <tr><td><code>?dshMobileUx=tap,hud</code></td>
+                <td data-zh="只留一节时，hud 这类读数开关不会被当成节来挤掉别节" data-en="Modifiers such as hud never count as a section in a keep-list">只留一节时，hud 这类读数开关不会被当成节来挤掉别节</td></tr>
             </tbody>
           </table>
         </div>

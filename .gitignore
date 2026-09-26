@@ -1,2 +1,6 @@
 node_modules/
 *.log
+
+# Local headless-Chromium scratch dirs used by the CDP probes
+.chrome-home/
+.chrome-prof/
