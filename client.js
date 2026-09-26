@@ -78,7 +78,15 @@ window.__ModuleLoader__.load({
      * list keeps changing its row heights while settling, so that first attempt can
      * land short and nothing corrects it afterwards.
      */
-    const TRAJECTORY_SETTLE_MS = [60, 200, 500, 1000];
+    const TRAJECTORY_SETTLE_MS = [60, 200, 500, 1000, 1800];
+
+    /**
+     * How many frames the trajectory watchdog keeps walking the tail down (§4).
+     *
+     * About two seconds at 60Hz: long enough for a large virtualised table to finish
+     * measuring its rows, short enough that the reader never waits on it.
+     */
+    const TRAJECTORY_WATCH_FRAMES = 120;
 
     /** How long a tap on a session row suppresses rename; see §3. */
     const TAP_RENAME_SUPPRESS_MS = 600;
@@ -577,74 +585,190 @@ window.__ModuleLoader__.load({
        * soon as the reader is no longer at the bottom: scrolling up is an
        * intention, and fighting it would be worse than the original bug.
        */
+      const trajectoryPanes = new WeakMap();
       let trajectoryTimers = [];
       /**
-       * Panes the reader has deliberately scrolled away from, and the listener
-       * that noticed. Distance alone cannot tell "the panel just opened parked in
-       * the middle" (the bug) from "the reader scrolled up on purpose" — the
-       * intent has to be observed, not inferred from pixels.
+       * Per-pane state for §4.
+       *
+       * @param pane - a trajectory scroll container.
+       * @returns that pane's record, creating it on first sight.
        */
-      const abandonedTrajectoryPanes = new WeakMap();
+      const trajectoryState = (pane) => {
+        let state = trajectoryPanes.get(pane);
+        if (state === undefined) {
+          state = {
+            away: false,
+            following: false,
+            measuredHeight: -1,
+            watched: false,
+            watchFrames: 0,
+            rafId: 0,
+          };
+          trajectoryPanes.set(pane, state);
+        }
+        return state;
+      };
       /**
        * Starts watching one pane for a deliberate scroll away from its tail.
+       *
+       * Intent has to be observed, not inferred from distance: the pane mounts parked
+       * mid-history (measured: scrollTop 365 of a 1013 scroll range on a phone), so a
+       * distance test fires immediately and disables the correction meant to run next.
+       * Only a scroll the pack did not cause counts.
        *
        * @param pane - the trajectory scroll container.
        */
       const watchTrajectoryIntent = (pane) => {
-        if (abandonedTrajectoryPanes.has(pane)) return;
-        const state = { away: false };
-        const onScroll = () => {
-          const distance = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
-          // Only a decisive move counts: settling layout must not read as intent.
-          if (distance > Math.max(TAIL_THRESHOLD_PX, pane.clientHeight / 2)) state.away = true;
-        };
-        pane.addEventListener('scroll', onScroll, { passive: true });
-        abandonedTrajectoryPanes.set(pane, { state, onScroll });
+        const state = trajectoryState(pane);
+        if (state.watched) return;
+        state.watched = true;
+        pane.addEventListener(
+          'scroll',
+          () => {
+            if (state.following) return;
+            const distance = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
+            if (distance > Math.max(TAIL_THRESHOLD_PX, pane.clientHeight / 2)) state.away = true;
+          },
+          { passive: true },
+        );
       };
-      /** @returns true when at least one pane was moved to its tail. */
-      const followTrajectoryTails = () => {
-        if (!switches.trajectory) return false;
-        let moved = false;
+      /**
+       * @returns every laid-out trajectory pane that still wants its tail.
+       *
+       * A pane inside a collapsed drawer measures 0x0; treating that as a settled pane
+       * is what previously consumed the one attempt a pane ever got, so the follower
+       * skips such a pane *without* recording it as handled and returns when it has a
+       * size.
+       */
+      const tailFollowablePanes = () => {
+        const panes = [];
         for (const pane of document.querySelectorAll('[data-trajectory-scroll]')) {
-          // Never fight a reader who scrolled up.
-          if (abandonedTrajectoryPanes.get(pane)?.state.away === true) continue;
-          const rows = pane.querySelectorAll('tr[data-record-index]');
-          const last = rows[rows.length - 1] ?? null;
-          // Anchoring on the last row also covers virtualised panes, whose
-          // scrollHeight is still being recomputed.
-          if (last !== null) last.scrollIntoView({ block: 'end', behavior: 'auto' });
-          else pane.scrollTop = pane.scrollHeight;
-          if (pane.scrollHeight - pane.clientHeight - pane.scrollTop > TAIL_THRESHOLD_PX) {
-            window.requestAnimationFrame(() => {
-              pane.scrollTop = pane.scrollHeight;
-            });
-          }
-          moved = true;
+          if (pane.clientHeight <= 0) continue;
+          if (pane.scrollHeight <= pane.clientHeight + TAIL_THRESHOLD_PX) continue;
+          if (trajectoryState(pane).away) continue;
+          panes.push(pane);
         }
-        return moved;
+        return panes;
+      };
+      /**
+       * Puts one pane on its tail and remembers the range it settled at.
+       *
+       * @param pane - the trajectory scroll container.
+       */
+      const putTrajectoryOnTail = (pane) => {
+        const state = trajectoryState(pane);
+        state.following = true;
+        try {
+          // The virtualised rows carry `data-record-index` on `div`s, so this is a
+          // plain attribute selector rather than a `tr` one.
+          const rows = pane.querySelectorAll('[data-record-index]');
+          const last = rows[rows.length - 1] ?? null;
+          if (last !== null) last.scrollIntoView({ block: 'end', behavior: 'auto' });
+          // Write the offset as well: a virtualised list can ignore the first attempt,
+          // and doing both is idempotent when both work.
+          pane.scrollTop = pane.scrollHeight;
+        } finally {
+          // The browser dispatches the resulting scroll event asynchronously.
+          window.requestAnimationFrame(() => {
+            state.following = false;
+          });
+        }
+      };
+      /**
+       * Walks the tail down as the list grows.
+       *
+       * Why a watchdog rather than a fixed schedule: the panel's scroll range is still
+       * growing after any set of delays one could pick, and whichever pass runs last
+       * leaves the pane wherever the range happened to end. On a desktop the panel has
+       * a fraction of the rows and settles long before the last pass, which is why the
+       * same code looks correct there and fails on a phone.
+       *
+       * @param pane - the pane being followed.
+       */
+      const runTrajectoryWatchdog = (pane) => {
+        const state = trajectoryState(pane);
+        if (state.watchFrames <= 0) return;
+        state.watchFrames -= 1;
+        // The intent is "stay on the tail", not "be within N pixels of it": once the
+        // pack has put a pane on its tail, later rows extend the range *below* the
+        // current offset, so a distance test is false at exactly the moment the pane
+        // needs following. A deliberate scroll up clears this flag and ends it.
+        if (!state.away) putTrajectoryOnTail(pane);
+        state.rafId = window.requestAnimationFrame(() => {
+          runTrajectoryWatchdog(pane);
+        });
+      };
+      /**
+       * Starts following a pane and keeps watching it while its layout settles.
+       *
+       * @param pane - the pane that just became measurable.
+       */
+      const scheduleTrajectoryFollow = (pane) => {
+        const state = trajectoryState(pane);
+        cancelTrajectoryFollow();
+        // A few timed passes catch the common case quickly...
+        for (const delay of TRAJECTORY_SETTLE_MS) {
+          trajectoryTimers.push(
+            window.setTimeout(() => {
+              putTrajectoryOnTail(pane);
+            }, delay),
+          );
+        }
+        // ...and the watchdog covers a list that is still growing when they are done.
+        state.watchFrames = TRAJECTORY_WATCH_FRAMES;
+        if (state.rafId === 0) runTrajectoryWatchdog(pane);
+        trajectoryTimers.push(
+          window.setTimeout(() => {
+            state.watchFrames = 0;
+            // Only now can a scroll mean something: the pack has stopped moving it.
+            watchTrajectoryIntent(pane);
+          }, TRAJECTORY_WATCH_FRAMES * 17 + 250),
+        );
       };
       const cancelTrajectoryFollow = () => {
         while (trajectoryTimers.length > 0) window.clearTimeout(trajectoryTimers.pop());
       };
-      const observedTrajectoryPanes = new WeakSet();
-      const trajectoryObserver =
-        switches.trajectory && typeof MutationObserver === 'function'
-          ? new MutationObserver(() => {
-              // A streaming chat mutates the DOM constantly; without this guard every
-              // token would cost a querySelectorAll.
-              if (doc.querySelector('[data-trajectory-scroll]') === null) return;
-              for (const pane of document.querySelectorAll('[data-trajectory-scroll]')) {
-                if (observedTrajectoryPanes.has(pane)) continue;
-                observedTrajectoryPanes.add(pane);
-                watchTrajectoryIntent(pane);
-                cancelTrajectoryFollow();
-                for (const delay of TRAJECTORY_SETTLE_MS) {
-                  trajectoryTimers.push(window.setTimeout(followTrajectoryTails, delay));
-                }
-              }
+      /**
+       * Reacts to a pane becoming measurable, which is when the panel actually opens.
+       *
+       * @param pane - the pane to inspect.
+       */
+      const noteTrajectoryPane = (pane) => {
+        const state = trajectoryState(pane);
+        if (pane.clientHeight <= 0) return;
+        if (state.measuredHeight === pane.clientHeight) return;
+        state.measuredHeight = pane.clientHeight;
+        if (state.away) return;
+        scheduleTrajectoryFollow(pane);
+      };
+      // The pane exists while the drawer is closed and measures 0x0, so it is a resize
+      // — not a DOM insertion — that says the panel has opened. Registration therefore
+      // has to be redone for every pane the DOM grows, because React is free to replace
+      // the element and a replaced element is a new target.
+      const trajectoryResizeObserver =
+        switches.trajectory && typeof ResizeObserver === 'function'
+          ? new ResizeObserver((entries) => {
+              for (const entry of entries) noteTrajectoryPane(entry.target);
             })
           : null;
-      trajectoryObserver?.observe(doc.body ?? documentElement, { childList: true, subtree: true });
+      const trajectoryObserver = switches.trajectory
+        ? new MutationObserver(() => {
+            // A streaming chat mutates the DOM constantly; without this guard every
+            // token would cost a querySelectorAll.
+            if (doc.querySelector('[data-trajectory-scroll]') === null) return;
+            for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
+              trajectoryResizeObserver?.observe(pane);
+              noteTrajectoryPane(pane);
+            }
+          })
+        : null;
+      if (trajectoryObserver !== null) {
+        trajectoryObserver.observe(doc.body ?? documentElement, { childList: true, subtree: true });
+        for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
+          trajectoryResizeObserver?.observe(pane);
+          noteTrajectoryPane(pane);
+        }
+      }
 
       /** Style elements this pack owns, so disposal removes exactly them. */
       const injectedStyles = [];
@@ -1193,11 +1317,12 @@ window.__ModuleLoader__.load({
         hud?.remove();
         lockElement.remove();
         cancelTrajectoryFollow();
-        trajectoryObserver?.disconnect();
         for (const pane of doc.querySelectorAll('[data-trajectory-scroll]')) {
-          const watched = abandonedTrajectoryPanes.get(pane);
-          if (watched !== undefined) pane.removeEventListener('scroll', watched.onScroll);
+          const state = trajectoryPanes.get(pane);
+          if (state?.rafId) window.cancelAnimationFrame(state.rafId);
         }
+        trajectoryObserver?.disconnect();
+        trajectoryResizeObserver?.disconnect();
         if (window.__dshMobileUx === api) delete window.__dshMobileUx;
       };
     }

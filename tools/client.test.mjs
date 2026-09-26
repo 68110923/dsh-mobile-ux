@@ -38,7 +38,7 @@ function check(name, actual, expected) {
  */
 function load(options = {}) {
   const { search = '', innerHeight = 665, userAgent = 'iPhone', maxTouchPoints = 5,
-    metaElement = null } = options;
+    metaElement = null, deferFrames = false } = options;
   const listeners = new Map();
   const timers = [];
 
@@ -209,8 +209,14 @@ function load(options = {}) {
     },
     removeEventListener() {},
     requestAnimationFrame: (fn) => {
-      fn();
-      return 1;
+      // Immediate by default, because most behaviour under test resolves within the
+      // frame it schedules; tests that need to step frames pass `deferFrames`.
+      if (!deferFrames) {
+        fn();
+        return 1;
+      }
+      frameQueue.push(fn);
+      return frameQueue.length;
     },
     cancelAnimationFrame() {},
     setTimeout: (fn, delay) => {
@@ -244,6 +250,19 @@ function load(options = {}) {
   };
 
   let observedCallback = null;
+  const frameQueue = [];
+  let resizeCallback = null;
+  const resizeTargets = [];
+  class ResizeObserver {
+    constructor(callback) {
+      resizeCallback = callback;
+    }
+    observe(target) {
+      resizeTargets.push(target);
+    }
+    disconnect() {}
+  }
+
   class MutationObserver {
     constructor(callback) {
       observedCallback = callback;
@@ -259,6 +278,7 @@ function load(options = {}) {
     Element,
     MouseEvent,
     MutationObserver,
+    ResizeObserver,
     navigator: { userAgent, maxTouchPoints },
     URL,
     Math,
@@ -305,6 +325,17 @@ function load(options = {}) {
     document,
     makeElement,
     makeEditable,
+    get trajectoryResizeCallback() {
+      return resizeCallback;
+    },
+    get frameQueueLength() {
+      return frameQueue.length;
+    },
+    /** Runs `count` animation frames, for the §4 watchdog. */
+    flushFrames(count) {
+      for (let i = 0; i < count; i += 1) frameQueue.splice(0).forEach((fn) => fn());
+    },
+    trajectoryResizeTargets: resizeTargets,
     /** The plugin's own diagnostic API, for assertions about its state. */
     keyboardOpen: () => Boolean(win.__dshMobileUx && win.__dshMobileUx.keyboardOpen()),
     get trajectoryObserverCallback() {
@@ -502,6 +533,143 @@ console.log('dsh-mobile-ux: client logic');
 {
   const env = load({ search: '?dshMobileUx=notap' });
   check('notap: no tap listener installed', env.listeners.has('win:pointerup'), false);
+  env.dispose();
+}
+
+// 9b. §4: the trajectory pane is followed to its tail, but never against the reader.
+//
+// The regression this pins: the pane mounts parked mid-history (measured on a real
+// page: scrollTop 365 of a 1013 scroll range). An intent test based on distance
+// fires on mount and permanently disables the correction meant to run next — which
+// is why opening 轨迹 still left the reader scrolling down for the newest rows.
+{
+  const env = load();
+  const pane = env.makeElement('div');
+  pane.setAttribute('data-trajectory-scroll', '');
+  pane.scrollHeight = 1698;
+  pane.clientHeight = 685;
+  pane.scrollTop = 365;                        // parked mid-history, like the bug
+  let lastRowScrolledIntoView = 0;
+  const row = env.makeElement('tr');
+  row.setAttribute('data-record-index', '812');
+  row.scrollIntoView = () => {
+    lastRowScrolledIntoView += 1;
+    pane.scrollTop = pane.scrollHeight - pane.clientHeight;   // lands on the tail
+  };
+  pane.querySelectorAll = (selector) => (selector.includes('record-index') ? [row] : []);
+  env.document.querySelector = (selector) => (selector.includes('trajectory') ? pane : null);
+  env.document.querySelectorAll = (selector) =>
+    selector.includes('trajectory') ? [pane] : [];
+
+  // The panel opening is a resize, not an insertion: the pane lives in the DOM at
+  // 0x0 while the drawer is closed.
+  const resized = env.trajectoryResizeCallback;
+  const mutated = env.trajectoryObserverCallback;
+  check('trajectory: a resize observer is wired', typeof resized, 'function');
+  check('trajectory: an insertion observer is wired', typeof mutated, 'function');
+  // Real order: the pane is inserted measuring 0x0, then the drawer opens and gives
+  // it a size. Both signals are needed — the insertion is what registers the resize
+  // observer, the resize is what says "the panel is open now".
+  pane.clientHeight = 0;
+  mutated();
+  check('trajectory: the pane is registered for resize', env.trajectoryResizeTargets.includes(pane), true);
+  pane.clientHeight = 685;
+  mutated();
+  resized([{ target: pane }]);
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: the tail is chased on open', lastRowScrolledIntoView > 0, true);
+  // A real browser clamps to scrollHeight - clientHeight; the stub keeps the write.
+  check('trajectory: the pane is scrolled at least to its tail',
+    pane.scrollTop >= pane.scrollHeight - pane.clientHeight, true);
+
+  // The reader scrolls up after the pack has finished: that must be respected, which
+  // means the pack stops moving the pane. The stub keeps fired timers in its array,
+  // so it is cleared first — otherwise the earlier passes fire a second time and the
+  // count would rise for reasons that have nothing to do with intent.
+  const before = lastRowScrolledIntoView;
+  env.timers.length = 0;
+  pane.scrollTop = 0;
+  pane.fire('scroll');
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: a deliberate scroll up is respected', lastRowScrolledIntoView, before);
+
+  // A pane inside a closed drawer measures 0x0 and must not be mistaken for a
+  // settled pane the reader has scrolled.
+  const hidden = env.makeElement('div');
+  hidden.setAttribute('data-trajectory-scroll', '');
+  hidden.clientHeight = 0;
+  hidden.scrollHeight = 0;
+  env.document.querySelectorAll = (selector) =>
+    selector.includes('trajectory') ? [hidden] : [];
+  const beforeHidden = lastRowScrolledIntoView;
+  env.timers.length = 0;
+  resized([{ target: hidden }]);
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: a zero-height pane is left alone', lastRowScrolledIntoView, beforeHidden);
+
+  // And the important half: because a 0x0 pane is *not* recorded as handled, the
+  // same pane is followed once it does get measured. Getting this wrong is what
+  // consumed a pane's single attempt and left the reader scrolling.
+  hidden.clientHeight = 685;
+  hidden.scrollHeight = 1698;
+  hidden.querySelectorAll = (selector) => (selector.includes('record-index') ? [row] : []);
+  env.timers.length = 0;
+  resized([{ target: hidden }]);
+  for (const timer of env.timers.slice()) timer.fn();
+  check('trajectory: a pane measured later is still followed',
+    lastRowScrolledIntoView > beforeHidden, true);
+  env.dispose();
+}
+// 9c. §4 can be switched off.
+{
+  const env = load({ search: '?dshMobileUx=notrajectory' });
+  check('notrajectory: no observer', env.trajectoryObserverCallback, null);
+  env.dispose();
+}
+
+// 9d. §4 is frame-driven as well as timer-driven, and it stops on request.
+//
+// The frames are what make it survive a virtualised list that is still measuring its
+// rows: the timed passes alone can all run before the range has finished growing, and
+// whichever runs last leaves the pane wherever the range happened to end. Verified in
+// a real browser (iPhone metrics emulation) by opening the panel and sampling for ten
+// seconds: scrollTop 1013 of max 1013, distanceFromBottom 0 throughout. That end-to-end
+// check is the authority here — the stub below only pins the wiring that makes it work.
+{
+  const env = load({ deferFrames: true });
+  const pane = env.makeElement('div');
+  pane.setAttribute('data-trajectory-scroll', '');
+  pane.clientHeight = 685;
+  pane.scrollHeight = 1698;
+  pane.scrollTop = 365;                     // parked mid-history, like the real bug
+  let rowHits = 0;
+  const row = env.makeElement('div');
+  row.setAttribute('data-record-index', '40');
+  row.scrollIntoView = () => {
+    rowHits += 1;
+    pane.scrollTop = pane.scrollHeight - pane.clientHeight;
+  };
+  pane.querySelectorAll = (selector) => (selector.includes('record-index') ? [row] : []);
+  env.document.querySelector = (selector) => (selector.includes('trajectory') ? pane : null);
+  env.document.querySelectorAll = (selector) =>
+    selector.includes('trajectory') ? [pane] : [];
+
+  env.trajectoryObserverCallback();
+  env.trajectoryResizeCallback([{ target: pane }]);
+  check('watchdog: animation frames are scheduled', env.frameQueueLength > 0, true);
+  for (const timer of env.timers.slice()) timer.fn();
+  check('watchdog: the timed passes already reach the tail', rowHits > 0, true);
+  check('watchdog: the pane sits on its tail',
+    pane.scrollHeight - pane.clientHeight - pane.scrollTop < 3, true);
+
+  // A reader who scrolls up is never fought again, frames or no frames.
+  const before = rowHits;
+  env.timers.length = 0;
+  pane.scrollTop = 0;
+  pane.fire('scroll');
+  for (const timer of env.timers.slice()) timer.fn();
+  env.flushFrames(3);
+  check('watchdog: a deliberate scroll up ends the follow', rowHits, before);
   env.dispose();
 }
 
