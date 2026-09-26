@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dsh-mobile-ux — DSH Web 手机端体验优化插件</title>
+    <meta
+      name="description"
+      content="DeepSeek Harness Web 壳层的手机端体验优化插件：窄屏布局修复、iOS 键盘与输入框跟随、侧边栏单击切换会话。纯客户端，桌面零回归。"
+    />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --bg-soft: #f6f7f9;
+        --card: #ffffff;
+        --border: #e3e6ea;
+        --fg: #14171a;
+        --fg-soft: #5b6470;
+        --accent: #247bbf;
+        --accent-soft: #eaf3fb;
+        --code-bg: #f2f4f7;
+        --ok: #1a7f4b;
+        --warn: #9a6b00;
+        --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 8px 24px rgb(16 24 40 / 6%);
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --bg-soft: #11161d;
+          --card: #161b22;
+          --border: #262d36;
+          --fg: #e6edf3;
+          --fg-soft: #9aa4b2;
+          --accent: #6cb6f0;
+          --accent-soft: #16283a;
+          --code-bg: #1b222b;
+          --ok: #4ac486;
+          --warn: #e0b341;
+          --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      code {
+        background: var(--code-bg);
+        border-radius: 6px;
+        padding: 0.12em 0.38em;
+        font-size: 0.9em;
+      }
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      header.top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(12px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--border);
+      }
+      header.top .wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 56px;
+      }
+      header.top img {
+        width: 26px;
+        height: 26px;
+        flex: none;
+      }
+      header.top .name {
+        font-weight: 650;
+        letter-spacing: 0.2px;
+      }
+      header.top nav {
+        margin-left: auto;
+        display: flex;
+        gap: 16px;
+        font-size: 14px;
+      }
+      header.top nav a {
+        color: var(--fg-soft);
+      }
+      .hero {
+        padding: 56px 0 8px;
+      }
+      .hero h1 {
+        font-size: clamp(26px, 5vw, 38px);
+        line-height: 1.25;
+        margin: 0 0 14px;
+        letter-spacing: -0.4px;
+      }
+      .hero p.lead {
+        font-size: 18px;
+        color: var(--fg-soft);
+        margin: 0 0 22px;
+      }
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 26px;
+        padding: 0;
+        list-style: none;
+      }
+      .pills li {
+        font-size: 13px;
+        color: var(--fg-soft);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px 11px;
+        background: var(--bg-soft);
+      }
+      pre.shell {
+        position: relative;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-size: 13.5px;
+        line-height: 1.6;
+        margin: 0 0 10px;
+      }
+      pre.shell .c {
+        color: var(--fg-soft);
+      }
+      section {
+        padding: 34px 0;
+        border-top: 1px solid var(--border);
+      }
+      section > h2 {
+        font-size: 21px;
+        margin: 0 0 6px;
+        letter-spacing: -0.2px;
+      }
+      section > p.sub {
+        margin: 0 0 20px;
+        color: var(--fg-soft);
+        font-size: 15px;
+      }
+      .table-scroll {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 560px;
+        font-size: 14.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        background: var(--bg-soft);
+        font-weight: 600;
+        color: var(--fg-soft);
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .cards {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+      .card h3 {
+        margin: 0 0 4px;
+        font-size: 16px;
+      }
+      .card .scope {
+        font-size: 12.5px;
+        color: var(--accent);
+        margin: 0 0 10px;
+      }
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 14.5px;
+        color: var(--fg-soft);
+      }
+      .card li {
+        margin: 4px 0;
+      }
+      .card li strong {
+        color: var(--fg);
+      }
+      ol.steps {
+        counter-reset: step;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      ol.steps li {
+        position: relative;
+        padding: 0 0 18px 44px;
+      }
+      ol.steps li::before {
+        counter-increment: step;
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 650;
+        display: grid;
+        place-items: center;
+      }
+      .note {
+        border-left: 3px solid var(--warn);
+        background: var(--bg-soft);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        padding: 12px 16px;
+        font-size: 14.5px;
+        color: var(--fg-soft);
+        margin: 16px 0 0;
+      }
+      .note strong {
+        color: var(--fg);
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 28px 0 48px;
+        color: var(--fg-soft);
+        font-size: 14px;
+      }
+      footer p {
+        margin: 6px 0;
+      }
+      @media (max-width: 560px) {
+        header.top nav {
+          gap: 12px;
+        }
+        header.top nav a.opt {
+          display: none;
+        }
+        .hero {
+          padding-top: 36px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <img src="./icon.svg" alt="" aria-hidden="true" />
+        <span class="name">dsh-mobile-ux</span>
+        <nav>
+          <a href="#install">安装</a>
+          <a href="#features">功能</a>
+          <a href="#switches">开关</a>
+          <a class="opt" href="https://github.com/68110923/dsh-mobile-ux">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="hero">
+        <h1>让 DeepSeek Harness 的 Web 界面在手机上真正好用</h1>
+        <p class="lead">
+          一个纯客户端插件，把窄屏布局、iOS 键盘与输入框跟随、侧边栏单击切换会话三件事一次补齐：不改壳层源码、桌面端零回归、每一节都能单独关掉。
+        </p>
+        <ul class="pills">
+          <li>纯客户端 · 无服务端组件</li>
+          <li>桌面 ≥ 1024px 零影响</li>
+          <li>iPhone + Safari 实测打磨</li>
+          <li>MIT</li>
+        </ul>
+        <pre class="shell"><code>dsh plugin --profile web add /path/to/dsh-mobile-ux</code></pre>
+        <pre class="shell"><code><span class="c"># 改完插件必须重启，否则浏览器永远拿到旧代码（immutable 缓存）</span>
+systemctl restart dsh-web</code></pre>
+      </div>
+
+      <section id="why">
+        <h2>它修的是七个具体问题</h2>
+        <p class="sub">全部来自真机使用，而不是"看起来可以更好"。</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>现象</th>
+                <th>根因</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>设置弹窗被压成一条缝、导航标签挤成一列</td>
+                <td>壳层没有 &lt; 768px 的手机档</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>输入框底部按钮折行、互相叠住</td>
+                <td>composer 按桌面宽度排版</td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td>侧边栏一展开就把对话区挤到约 110px 宽</td>
+                <td>侧边栏是栅格列，不浮层</td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td><strong>点输入框整页被放大，输入框看不见</strong></td>
+                <td>编辑器 14px；iOS 对"聚焦时字号 &lt; 16px"的可编辑元素强制缩放整页</td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td><strong>打字/回撤后输入框掉到键盘后面</strong></td>
+                <td>外壳高度 = 布局视口，而键盘是覆盖层只缩小视觉视口；页面因此可滚，浏览器把输入框滚出可视区</td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td>键盘收起后，输入框和键盘之间留一段空白</td>
+                <td>键盘动画结束前测到的高度是过期值，之后再没有事件纠正</td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td><strong>切换会话要点两次，且不能快速双击</strong></td>
+                <td>行是单击打开，但"重命名"挂在行内标题的双击上；第二次点击被判定成双击</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="features">
+        <h2>三个能力</h2>
+        <p class="sub">分节实现、分节开关，手机是唯一能判断它们好坏的地方。</p>
+        <div class="cards">
+          <div class="card">
+            <h3>§1 窄屏布局</h3>
+            <p class="scope">≤ 700px 媒体查询</p>
+            <ul>
+              <li>设置弹窗全屏纵向，导航变一行可横滑的标签</li>
+              <li>输入框底栏不换行：工具区可压缩、发送键不压缩</li>
+              <li><strong>侧边栏浮在对话之上</strong>，栅格始终保留 56px 轨道</li>
+              <li>点抽屉外部收起</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>§2 iOS 键盘与可视视口</h3>
+            <p class="scope">触屏 + 聚焦可编辑元素时</p>
+            <ul>
+              <li><strong>防聚焦缩放</strong>：可编辑元素字号提到 17px，且写在样式表里——iOS 在焦点转移那一刻就决定缩放，写在 focus 处理器里对首次点击已经太晚</li>
+              <li><strong>输入框跟随键盘</strong>：外壳高度钉到 <code>visualViewport.height</code>，只向下取整（高 1px 就会让文档重新可滚）</li>
+              <li>键盘期间锁住文档滚动</li>
+              <li>键盘落定后补测几次，消掉空白带</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>§3 单击切换会话</h3>
+            <p class="scope">触屏 + 窄屏，桌面双击重命名照旧</p>
+            <ul>
+              <li><strong>单击即切换</strong>，不等双击判定窗口</li>
+              <li><strong>切完自动收起抽屉</strong>（点抽屉自己的开合按钮，走壳层真实路径）</li>
+              <li>600ms 内吞掉双击，不再误触发重命名</li>
+              <li>复用产品的打开逻辑，不重写会话语义</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="install">
+        <h2>安装与验证</h2>
+        <p class="sub">需要 Node ≥ 22 与一个 DSH Web profile。</p>
+        <ol class="steps">
+          <li>
+            装进 profile：
+            <pre class="shell"><code>dsh plugin --profile web add /path/to/dsh-mobile-ux</code></pre>
+          </li>
+          <li>
+            重启服务：
+            <pre class="shell"><code>systemctl restart dsh-web   <span class="c"># 或你的 dsh web 进程</span></code></pre>
+          </li>
+          <li>
+            手机上<strong>强制刷新</strong>页面（Safari 下拉刷新），然后依次验证：
+            <ul>
+              <li>点左上角图标展开侧边栏 → 应该是<strong>浮层抽屉</strong>，点空白处收起</li>
+              <li>输入框底部按钮<strong>保持一行</strong>，不折行不叠层</li>
+              <li>设置面板<strong>全屏纵向</strong>、标签可横滑</li>
+              <li>点输入框 → <strong>页面不放大</strong>；打字/回撤 → <strong>输入框不掉下去</strong></li>
+              <li>点一个未选中的会话 → <strong>一次点击就切换，且抽屉自动收起</strong></li>
+            </ul>
+          </li>
+        </ol>
+        <p class="note">
+          <strong>为什么必须重启：</strong>DSH 用文件的 mtime/ctime/size 算 bundle 版本号，响应头又是
+          <code>immutable</code> 一年缓存。不重启的话，磁盘上改了、服务端也返回新内容，浏览器却仍然执行旧代码——这一条曾让人误判过好几次。
+        </p>
+      </section>
+
+      <section id="switches">
+        <h2>开关</h2>
+        <p class="sub">
+          URL 参数 <code>?dshMobileUx=</code> 后接逗号分隔的值；也可以加载前用
+          <code>window.__dshMobileUx = { keyboard: false }</code> 覆盖。
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>值</th>
+                <th>作用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>0</code> / <code>off</code></td><td>整包不生效</td></tr>
+              <tr><td><code>layout</code> / <code>keyboard</code> / <code>tap</code></td><td>只保留列出的这几节</td></tr>
+              <tr><td><code>nolayout</code> / <code>nokeyboard</code> / <code>notap</code></td><td>关掉列出的这几节</td></tr>
+              <tr><td><code>keepdrawer</code></td><td>单击切换后不自动收起侧边栏</td></tr>
+              <tr><td><code>nolock</code></td><td>键盘打开时不锁文档滚动</td></tr>
+              <tr><td><code>nofont</code></td><td>不做字号提升（防聚焦缩放）</td></tr>
+              <tr><td><code>meta</code></td><td>额外把 <code>maximum-scale=1</code> 写进 viewport meta（同时会禁掉双指缩放，默认关）</td></tr>
+              <tr><td><code>bottom</code></td><td>开启可视视口平移补偿（默认关：它会让外壳比可视区高，反而留出空白带）</td></tr>
+              <tr><td><code>hud</code></td><td>左上角显示实时读数 <code>vvH / root / kb / lock / y / oT</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="credits">
+        <h2>参考项目与致谢</h2>
+        <p class="sub">§1 的样式与"点外部收起抽屉"源自上游，§2 是与真机一起磨出来的。</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>用处</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><a href="https://github.com/AcidGr/dsh-web-mobile-fix">AcidGr/dsh-web-mobile-fix</a></td>
+                <td>§1 的原始实现（设置面板、浮层侧边栏、遮罩、点外部收起），MIT</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/TecFancy/dsh-mobile">TecFancy/dsh-mobile</a></td>
+                <td>手机档适配的另一种做法（断点层 + 状态桥 + <code>data-slot</code> 样式表），参考了它的取舍，MIT</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/langyo/dsh-mobile-upgrade">langyo/dsh-mobile-upgrade</a></td>
+                <td>同类问题的另一种整理方式，安装与排错思路有参考</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></td>
+                <td>被适配的壳层本体；插件只锚在它的 <code>data-slot</code> 与类名前缀契约上</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          §1 的样式与 §3 的"点击外部收起侧边栏"逻辑直接源自 <code>dsh-web-mobile-fix</code>（MIT），本仓库在其基础上做了整合与修正；§2 没有上游可抄，结论全部来自这台设备上的实测。
+        </p>
+      </section>
+
+      <section id="limits">
+        <h2>已知边界</h2>
+        <ul>
+          <li>防聚焦缩放会<strong>覆盖内容字号</strong>：手机上编辑器固定 17px，"小号"档位对它不再生效。把字号调回 14px，缩放就回来——这是取舍。</li>
+          <li>§3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入。</li>
+          <li>选择器锚定产品的 <code>data-slot</code> 与 CSS Module 类名前缀，同版本线内稳定，<strong>产品大改版后可能需要小改</strong>。</li>
+          <li>不改任何产品源码，也不依赖服务端组件；卸载即完全可逆。</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          <a href="https://github.com/68110923/dsh-mobile-ux">GitHub 仓库</a> ·
+          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/README.md">完整 README</a> ·
+          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/LICENSE">MIT License</a>
+        </p>
+        <p>为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。</p>
+      </div>
+    </footer>
+  </body>
+</html>
