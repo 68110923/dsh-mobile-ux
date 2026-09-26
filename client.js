@@ -62,9 +62,6 @@ window.__ModuleLoader__.load({
      */
     const MIN_KEYBOARD_HEIGHT = 80;
 
-    /** Pinch-zoom threshold; above it the user is panning on purpose. */
-    const MAX_EFFECTIVE_SCALE = 1.01;
-
     /** Width at or below which the narrow-screen layout applies. */
     const NARROW_QUERY = '(max-width: 700px)';
 
@@ -427,7 +424,6 @@ window.__ModuleLoader__.load({
     function refreshKeyboardState() {
       const viewport = window.visualViewport ?? null;
       const visible = viewport === null ? window.innerHeight : viewport.height;
-      const zoomed = viewport !== null && viewport.scale > MAX_EFFECTIVE_SCALE;
       const previous = keyboard.lastHeight;
       keyboard.lastHeight = visible;
       if (previous === 0 || visible > keyboard.referenceHeight) keyboard.referenceHeight = visible;
@@ -436,10 +432,16 @@ window.__ModuleLoader__.load({
       if (!editableFocused() && Math.abs(visible - previous) > MIN_KEYBOARD_HEIGHT) {
         keyboard.referenceHeight = visible;
       }
-      if (!editableFocused() || zoomed || !touchDevice()) {
+      if (!editableFocused() || !touchDevice()) {
         keyboard.open = false;
         return false;
       }
+      // A page zoom is NOT a reason to stop following the viewport. iOS zooms the
+      // page itself when a focused editable renders below 16px, and treating that
+      // zoom as "the user is panning, no keyboard here" is exactly what let the
+      // composer drop behind the keyboard once this pack stopped overriding the
+      // product's font size. Whatever the scale, the visible height is the box the
+      // keyboard left us.
       keyboard.open = visible < keyboard.referenceHeight - MIN_KEYBOARD_HEIGHT;
       return keyboard.open;
     }
@@ -762,16 +764,16 @@ window.__ModuleLoader__.load({
       };
 
       /**
-       * Undoes a document scroll that iOS performed to follow the caret. Only a
-       * pinch-zoomed visual viewport may stay scrolled, because there the user
-       * is panning on purpose.
+       * Undoes a document scroll that iOS performed to follow the caret.
+       *
+       * A zoomed viewport is no reason to skip this: the reported bug — the
+       * composer sliding behind the keyboard — happens while iOS has the page
+       * zoomed in, which is precisely when the document must not be left scrolled.
        *
        * @returns true when a non-zero scroll position was found.
        */
       const resetDocumentScroll = () => {
         if (window.scrollX === 0 && window.scrollY === 0) return false;
-        const scale = window.visualViewport?.scale ?? 1;
-        if (scale > MAX_EFFECTIVE_SCALE) return false;
         // No resetting guard is needed: a scroll event caused by this call sees
         // scrollX/scrollY back at 0 and returns immediately.
         window.scrollTo(0, 0);

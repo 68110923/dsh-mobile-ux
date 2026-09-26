@@ -304,6 +304,8 @@ function load(options = {}) {
     document,
     makeElement,
     makeEditable,
+    /** The plugin's own diagnostic API, for assertions about its state. */
+    keyboardOpen: () => Boolean(win.__dshMobileUx && win.__dshMobileUx.keyboardOpen()),
     get trajectoryObserverCallback() {
       return observedCallback;
     },
@@ -364,15 +366,20 @@ console.log('dsh-mobile-ux: client logic');
   check('dispose: heights removed', env.root.style.height, '');
 }
 
-// 3. Pinch-zoom must never be touched.
+// 3. A zoomed page is still followed, not ignored.
+//
+// This used to assert the opposite ("zoom: shell untouched"), which encoded the
+// very bug that made the composer drop behind the keyboard: iOS zooms the page
+// itself for a focused editable under 16px, and ignoring that shrink meant the
+// shell never followed the visible area. See the later regression block.
 {
   const env = load();
   const editable = env.makeEditable(); env.document.activeElement = editable;
   env.win.visualViewport.height = 300;
   env.win.visualViewport.scale = 2;
   env.listeners.get('win:focusin')({ target: env.document.activeElement, relatedTarget: null });
-  check('zoom: shell untouched', env.root.style.height, '665px');
-  check('zoom: no scroll lock', env.attached().some((css) => css.includes('overscroll-behavior: none')), false);
+  check('zoom: shell follows the visible height', env.root.style.height, '300px');
+  check('zoom: document is locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
   env.dispose();
 }
 
@@ -540,6 +547,33 @@ console.log('dsh-mobile-ux: client logic');
   check('no zoom-guard attribute is set',
     Object.prototype.hasOwnProperty.call(env2.documentElement.attributes, 'data-dsh-mux-guard-font'), false);
   env2.dispose();
+  env.dispose();
+}
+
+// 11. §2 must keep following while the page is zoomed.
+//
+// The regression this pins: the keyboard latch used to treat `scale > 1` as "the
+// reader is panning, there is no keyboard here". iOS zooms the page itself when a
+// focused editable is under 16px, so the latch reported "no keyboard", the shell
+// stopped tracking the visible height, and the composer dropped behind the
+// keyboard. It only surfaced once the pack stopped overriding the font size.
+{
+  const env = load();
+  const editable = env.makeEditable();
+  env.document.activeElement = editable;
+  // Focus first, then the page zooms and the visible box shrinks — the iOS order.
+  env.listeners.get('win:focusin')({ target: editable, relatedTarget: null });
+  env.win.visualViewport.scale = 1.6;
+  env.win.visualViewport.height = 300;
+  env.win.visualViewport.fire('resize');
+  check('zoomed: shell still follows the visible height', env.root.style.height, '300px');
+  check('zoomed: the keyboard is still considered open', env.keyboardOpen(), true);
+  check('zoomed: the document is still locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
+
+  // And a document scroll is still undone while zoomed.
+  env.win.scrollY = 40;
+  env.listeners.get('win:scroll')();
+  check('zoomed: a stray document scroll is still reset', env.win.scrollY, 0);
   env.dispose();
 }
 
