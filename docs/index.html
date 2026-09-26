@@ -11,367 +11,42 @@
       name="description"
       content="DeepSeek Harness Web 壳层的手机端体验优化插件：窄屏布局修复、iOS 键盘与输入框跟随、侧边栏单击切换会话。纯客户端，桌面零回归。"
     />
-    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <style>
-      :root {
-        color-scheme: light dark;
-        --bg: #ffffff;
-        --bg-soft: #f6f7f9;
-        --card: #ffffff;
-        --border: #e3e6ea;
-        --fg: #14171a;
-        --fg-soft: #5b6470;
-        --accent: #247bbf;
-        --accent-soft: #eaf3fb;
-        --code-bg: #f2f4f7;
-        --warn: #9a6b00;
-        --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 8px 24px rgb(16 24 40 / 6%);
-        --radius: 14px;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0d1117;
-          --bg-soft: #11161d;
-          --card: #161b22;
-          --border: #262d36;
-          --fg: #e6edf3;
-          --fg-soft: #9aa4b2;
-          --accent: #6cb6f0;
-          --accent-soft: #16283a;
-          --code-bg: #1b222b;
-          --warn: #e0b341;
-          --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
-        }
-      }
-      * {
-        box-sizing: border-box;
-      }
-      html {
-        -webkit-text-size-adjust: 100%;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--fg);
-        font:
-          16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      }
-      a {
-        color: var(--accent);
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
-      code,
-      pre {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      }
-      code {
-        background: var(--code-bg);
-        border-radius: 6px;
-        padding: 0.12em 0.38em;
-        font-size: 0.9em;
-      }
-      .wrap {
-        max-width: 860px;
-        margin: 0 auto;
-        padding: 0 20px;
-      }
-      header.top {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        backdrop-filter: blur(12px);
-        background: color-mix(in srgb, var(--bg) 82%, transparent);
-        border-bottom: 1px solid var(--border);
-      }
-      header.top .wrap {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 56px;
-      }
-      header.top img {
-        width: 26px;
-        height: 26px;
-        flex: none;
-      }
-      header.top .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        color: inherit;
-        min-width: 0;
-      }
-      header.top .brand:hover {
-        text-decoration: none;
-      }
-      header.top .name {
-        font-weight: 650;
-        letter-spacing: 0.2px;
-        white-space: nowrap;
-      }
-      header.top nav {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        font-size: 14px;
-      }
-      header.top nav a {
-        color: var(--fg-soft);
-      }
-      /* Language switch: a two-state control, no dropdown and no page reload. */
-      .langs {
-        display: inline-flex;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        overflow: hidden;
-        background: var(--bg-soft);
-      }
-      .langs button {
-        appearance: none;
-        border: 0;
-        background: transparent;
-        color: var(--fg-soft);
-        font: inherit;
-        font-size: 13px;
-        padding: 3px 11px;
-        cursor: pointer;
-        line-height: 1.5;
-        /* The labels must never wrap: a two-line 中文 chip widened the whole
-           header on a 390px screen. */
-        white-space: nowrap;
-      }
-      .langs button[aria-pressed="true"] {
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-weight: 650;
-      }
-      .hero {
-        padding: 56px 0 8px;
-      }
-      .hero h1 {
-        font-size: clamp(26px, 5vw, 38px);
-        line-height: 1.25;
-        margin: 0 0 14px;
-        letter-spacing: -0.4px;
-      }
-      .hero p.lead {
-        font-size: 18px;
-        color: var(--fg-soft);
-        margin: 0 0 22px;
-      }
-      .pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 0 0 26px;
-        padding: 0;
-        list-style: none;
-      }
-      .pills li {
-        font-size: 13px;
-        color: var(--fg-soft);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 3px 11px;
-        background: var(--bg-soft);
-      }
-      pre.shell {
-        position: relative;
-        background: var(--code-bg);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 14px 16px;
-        overflow-x: auto;
-        font-size: 13.5px;
-        line-height: 1.6;
-        margin: 0 0 10px;
-      }
-      pre.shell .c {
-        color: var(--fg-soft);
-      }
-      section {
-        padding: 34px 0;
-        border-top: 1px solid var(--border);
-      }
-      section > h2 {
-        font-size: 21px;
-        margin: 0 0 6px;
-        letter-spacing: -0.2px;
-      }
-      section > p.sub {
-        margin: 0 0 20px;
-        color: var(--fg-soft);
-        font-size: 15px;
-      }
-      .table-scroll {
-        overflow-x: auto;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        min-width: 560px;
-        font-size: 14.5px;
-      }
-      th,
-      td {
-        text-align: left;
-        padding: 11px 14px;
-        border-bottom: 1px solid var(--border);
-        vertical-align: top;
-      }
-      th {
-        background: var(--bg-soft);
-        font-weight: 600;
-        color: var(--fg-soft);
-        white-space: nowrap;
-      }
-      tr:last-child td {
-        border-bottom: 0;
-      }
-      .cards {
-        display: grid;
-        gap: 14px;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 18px;
-        box-shadow: var(--shadow);
-      }
-      .card h3 {
-        margin: 0 0 4px;
-        font-size: 16px;
-      }
-      .card .scope {
-        font-size: 12.5px;
-        color: var(--accent);
-        margin: 0 0 10px;
-      }
-      .card ul {
-        margin: 0;
-        padding-left: 18px;
-        font-size: 14.5px;
-        color: var(--fg-soft);
-      }
-      .card li {
-        margin: 4px 0;
-      }
-      .card li strong {
-        color: var(--fg);
-      }
-      ol.steps {
-        counter-reset: step;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      ol.steps > li {
-        position: relative;
-        padding: 0 0 18px 44px;
-      }
-      ol.steps > li::before {
-        counter-increment: step;
-        content: counter(step);
-        position: absolute;
-        left: 0;
-        top: 1px;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-size: 13px;
-        font-weight: 650;
-        display: grid;
-        place-items: center;
-      }
-      /* Nested lists must not pick up the step counter. */
-      ol.steps ul {
-        list-style: disc;
-        margin: 8px 0 0;
-        padding-left: 20px;
-        color: var(--fg-soft);
-        font-size: 14.5px;
-      }
-      ol.steps ul li {
-        padding: 0;
-        margin: 4px 0;
-      }
-      ol.steps ul li::before {
-        content: none;
-        counter-increment: none;
-      }
-      .note {
-        border-left: 3px solid var(--warn);
-        background: var(--bg-soft);
-        border-radius: 0 var(--radius) var(--radius) 0;
-        padding: 12px 16px;
-        font-size: 14.5px;
-        color: var(--fg-soft);
-        margin: 16px 0 0;
-      }
-      .note strong {
-        color: var(--fg);
-      }
-      footer {
-        border-top: 1px solid var(--border);
-        padding: 28px 0 48px;
-        color: var(--fg-soft);
-        font-size: 14px;
-      }
-      footer p {
-        margin: 6px 0;
-      }
-      @media (max-width: 560px) {
-        header.top .wrap {
-          gap: 8px;
-          padding: 0 14px;
-        }
-        header.top .brand {
-          gap: 7px;
-        }
-        header.top .name {
-          font-size: 14px;
-        }
-        header.top nav {
-          gap: 10px;
-        }
-        .langs button {
-          padding: 3px 9px;
-        }
-        .hero {
-          padding-top: 36px;
-        }
-      }
-    </style>
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
+    <a class="skip" href="#main" data-zh="跳到正文" data-en="Skip to content">跳到正文</a>
     <header class="top">
       <div class="wrap">
         <a class="brand" href="./" title="dsh-mobile-ux">
-          <img src="./icon.svg" alt="" aria-hidden="true" />
+          <img src="./assets/icon.svg" alt="" aria-hidden="true" />
           <span class="name">dsh-mobile-ux</span>
         </a>
-        <nav>
-          <a href="#install" data-zh="安装" data-en="Install">安装</a>
+        <span class="navslot">
+          <nav class="pages" aria-label="Pages / 页面">
+            <a href="./" data-zh="首页" data-en="Home">首页</a>
+            <a href="./access.html" data-zh="接入指南" data-en="Access">接入指南</a>
+          </nav>
           <span class="langs" role="group" aria-label="Language / 语言">
             <button type="button" data-lang="zh" aria-pressed="true">中文</button>
             <button type="button" data-lang="en" aria-pressed="false">EN</button>
           </span>
-        </nav>
+        </span>
       </div>
     </header>
 
-    <main class="wrap">
+    <nav class="anchors" aria-label="Sections / 本页导航">
+      <ul>
+        <li><a href="#why" data-zh="七个问题" data-en="Seven problems">七个问题</a></li>
+        <li><a href="#features" data-zh="三个能力" data-en="Capabilities">三个能力</a></li>
+        <li><a href="#install" data-zh="安装" data-en="Install">安装</a></li>
+        <li><a href="#switches" data-zh="开关" data-en="Switches">开关</a></li>
+        <li><a href="#credits" data-zh="致谢" data-en="Credits">致谢</a></li>
+        <li><a href="#limits" data-zh="边界" data-en="Limits">边界</a></li>
+      </ul>
+    </nav>
+
+    <main class="wrap" id="main">
       <div class="hero">
         <h1
           data-zh="让 DeepSeek Harness 的 Web 界面在手机上真正好用"
@@ -611,79 +286,17 @@ systemctl restart dsh-web</code></pre>
     </main>
 
     <footer>
-      <div class="wrap">
-        <p>
-          <a href="https://github.com/68110923/dsh-mobile-ux" data-zh="GitHub 仓库" data-en="GitHub repository">GitHub 仓库</a> ·
-          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/README.md" data-zh="完整 README" data-en="Full README">完整 README</a> ·
-          <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/LICENSE">MIT License</a>
-        </p>
-        <p
-          data-zh="为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。"
-          data-en="Written for the DeepSeek Harness web profile and tuned against a real iPhone running Safari."
-        >为 DeepSeek Harness 的 Web profile 编写，在 iPhone + Safari 上实测打磨。</p>
+      <div class="wrap row">
+        <a href="https://github.com/68110923/dsh-mobile-ux" data-zh="GitHub 仓库" data-en="GitHub repository">GitHub 仓库</a>
+        <span class="sep">·</span>
+        <a href="./access.html" data-zh="接入指南" data-en="Access">接入指南</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/68110923/dsh-mobile-ux/blob/main/LICENSE">MIT License</a>
+        <span class="sep">·</span>
+        <span data-zh="为 DeepSeek Harness 的 Web profile 编写" data-en="Built for the DeepSeek Harness web profile">为 DeepSeek Harness 的 Web profile 编写</span>
       </div>
     </footer>
 
-    <script>
-      /**
-       * Language switch.
-       *
-       * Every translatable node carries both texts as `data-zh` / `data-en`, so
-       * switching rewrites existing elements: no reload, no fetch, and no second
-       * copy of the markup that could drift out of sync. With JavaScript disabled
-       * the page renders the Chinese copy baked into the HTML, which also keeps
-       * the content readable without script.
-       */
-      (function () {
-        var root = document.documentElement;
-        var buttons = Array.prototype.slice.call(document.querySelectorAll('.langs button'));
-        var nodes = Array.prototype.slice.call(
-          document.querySelectorAll('[data-zh][data-en]'),
-        );
-
-        /**
-         * Applies one language to every tagged node.
-         *
-         * @param lang - 'zh' or 'en'.
-         */
-        function apply(lang) {
-          var key = lang === 'en' ? 'en' : 'zh';
-          root.setAttribute('lang', key === 'en' ? 'en' : 'zh-CN');
-          for (var i = 0; i < nodes.length; i += 1) {
-            var node = nodes[i];
-            var value = node.getAttribute('data-' + key);
-            if (value === null) continue;
-            if (node.tagName === 'TITLE') node.textContent = value;
-            else node.innerHTML = value;
-          }
-          for (var j = 0; j < buttons.length; j += 1) {
-            buttons[j].setAttribute(
-              'aria-pressed',
-              buttons[j].getAttribute('data-lang') === key ? 'true' : 'false',
-            );
-          }
-          try {
-            localStorage.setItem('dsh-mobile-ux:lang', key);
-          } catch (error) {
-            /* private mode: the choice simply does not persist */
-          }
-        }
-
-        for (var i = 0; i < buttons.length; i += 1) {
-          buttons[i].addEventListener('click', function (event) {
-            apply(event.currentTarget.getAttribute('data-lang'));
-          });
-        }
-
-        var stored = null;
-        try {
-          stored = localStorage.getItem('dsh-mobile-ux:lang');
-        } catch (error) {
-          stored = null;
-        }
-        if (stored === 'en' || stored === 'zh') apply(stored);
-        else if (!/^zh/i.test(navigator.language || '')) apply('en');
-      })();
-    </script>
+    <script src="./assets/site.js"></script>
   </body>
 </html>

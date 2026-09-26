@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title
+      data-zh="接入指南 — 从电脑或手机用上服务器上的 dsh web"
+      data-en="Access guide — reach a server-side dsh web from a laptop or a phone"
+    >接入指南 — 从电脑或手机用上服务器上的 dsh web</title>
+    <meta
+      name="description"
+      content="把部署在服务器上的 DeepSeek Harness Web 接到本地电脑或手机的三种方案：SSH 隧道、nginx 反向代理（无域名）、nginx + 域名 + TLS。含防火墙、--trusted-host、常见故障排查。"
+    />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./assets/site.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main" data-zh="跳到正文" data-en="Skip to content">跳到正文</a>
+
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="./" title="dsh-mobile-ux">
+          <img src="./assets/icon.svg" alt="" aria-hidden="true" />
+          <span class="name">dsh-mobile-ux</span>
+        </a>
+        <span class="navslot">
+          <nav class="pages" aria-label="Pages / 页面">
+            <a href="./" data-zh="首页" data-en="Home">首页</a>
+            <a href="./access.html" data-zh="接入指南" data-en="Access">接入指南</a>
+          </nav>
+          <span class="langs" role="group" aria-label="Language / 语言">
+            <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+            <button type="button" data-lang="en" aria-pressed="false">EN</button>
+          </span>
+        </span>
+      </div>
+    </header>
+
+    <nav class="anchors" aria-label="Sections / 本页导航">
+      <ul>
+        <li><a href="#prereq" data-zh="前置条件" data-en="Prerequisites">前置条件</a></li>
+        <li><a href="#tunnel" data-zh="① SSH 隧道" data-en="① SSH tunnel">① SSH 隧道</a></li>
+        <li><a href="#nginx-ip" data-zh="② nginx + IP" data-en="② nginx + IP">② nginx + IP</a></li>
+        <li><a href="#nginx-domain" data-zh="③ 域名 + TLS" data-en="③ Domain + TLS">③ 域名 + TLS</a></li>
+        <li><a href="#mobile" data-zh="手机端" data-en="On a phone">手机端</a></li>
+        <li><a href="#chooser" data-zh="怎么选" data-en="Which one">怎么选</a></li>
+        <li><a href="#trouble" data-zh="排错" data-en="Troubleshooting">排错</a></li>
+      </ul>
+    </nav>
+
+    <main class="wrap" id="main">
+      <div class="hero">
+        <p class="eyebrow" data-zh="接入指南" data-en="Access">接入指南</p>
+        <h1
+          data-zh="服务器上的 dsh web，怎么在自己电脑和手机上用起来"
+          data-en="How to actually use a server-side dsh web from your laptop and your phone"
+        >服务器上的 dsh web，怎么在自己电脑和手机上用起来</h1>
+        <p
+          class="lead"
+          data-zh="dsh web 默认只监听 127.0.0.1 —— 这是有意的：它没有内建的用户体系，谁连上谁就是你的会话。所以接入方式的选择，本质是「你打算把这扇门开多大」。下面三种方案按暴露面从小到大排列，都假定服务器有独立公网 IP。"
+          data-en="By default dsh web listens on 127.0.0.1 only, and that is deliberate: it has no user system, so whoever can reach it is you. Choosing an access method is therefore really about how wide you want to open that door. The three methods below are ordered from smallest exposure to largest, and all assume the server has its own public IP."
+        >dsh web 默认只监听 127.0.0.1 —— 这是有意的：它没有内建的用户体系，谁连上谁就是你的会话。所以接入方式的选择，本质是「你打算把这扇门开多大」。下面三种方案按暴露面从小到大排列，都假定服务器有独立公网 IP。</p>
+        <ul class="pills">
+          <li data-zh="① SSH 隧道 · 零暴露" data-en="① SSH tunnel · nothing exposed">① SSH 隧道 · 零暴露</li>
+          <li data-zh="② nginx + IP · 无域名" data-en="② nginx + IP · no domain">② nginx + IP · 无域名</li>
+          <li data-zh="③ 域名 + TLS · 可长期用" data-en="③ domain + TLS · production">③ 域名 + TLS · 可长期用</li>
+        </ul>
+      </div>
+
+      <!-- ============================================================ prereq -->
+      <section id="prereq">
+        <h2 data-zh="前置条件" data-en="Prerequisites">前置条件</h2>
+        <p
+          class="sub"
+          data-zh="三种方案共用的四件事，先确认它们，能省掉后面一大半排错时间。"
+          data-en="Four things every method relies on. Confirming them first saves most of the debugging later."
+        >三种方案共用的四件事，先确认它们，能省掉后面一大半排错时间。</p>
+
+        <div class="cards">
+          <div class="card">
+            <h3 data-zh="服务器有独立公网 IP" data-en="The server has its own public IP">服务器有独立公网 IP</h3>
+            <p class="scope" data-zh="方案 ②③ 必需；方案 ① 不需要" data-en="Required by ② and ③; not by ①">方案 ②③ 必需；方案 ① 不需要</p>
+            <ul>
+              <li data-zh="云服务器控制台的「弹性公网 IP / 固定 IP」都算；只有内网 IP 或位于 NAT 后面不算" data-en="An elastic or static IP from the cloud console counts; a private IP or one behind carrier NAT does not">云服务器控制台的「弹性公网 IP / 固定 IP」都算；只有内网 IP 或位于 NAT 后面不算</li>
+              <li data-zh="自查命令：curl -s ifconfig.me 打印出来的地址要和你在控制台看到的一致" data-en="Check with: curl -s ifconfig.me — the address it prints must match the console">自查命令：<code>curl -s ifconfig.me</code> 的结果要和你在控制台看到的一致</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 data-zh="能用 SSH 登录" data-en="You can SSH in">能用 SSH 登录</h3>
+            <p class="scope" data-zh="三种方案共用" data-en="Needed by all three">三种方案共用</p>
+            <ul>
+              <li data-zh="方案 ① 是在 SSH 之上做转发，所以这条路必须先通" data-en="Method ① tunnels over SSH, so this has to work first">方案 ① 是在 SSH 之上做转发，所以这条路必须先通</li>
+              <li data-zh="方案 ②③ 也要靠它装 nginx、签发证书" data-en="Methods ② and ③ need it to install nginx and issue certificates">方案 ②③ 也要靠它装 nginx、签发证书</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 data-zh="dsh web 以 systemd 常驻" data-en="dsh web runs under systemd">dsh web 以 systemd 常驻</h3>
+            <p class="scope" data-zh="监听 127.0.0.1:3081" data-en="Listening on 127.0.0.1:3081">监听 127.0.0.1:3081</p>
+            <ul>
+              <li data-zh="下文假定单元名是 dsh-web；服务由谁托管不重要，能重启、能看日志就行" data-en="The unit is called dsh-web below; what matters is that you can restart it and read its logs">下文假定单元名是 <code>dsh-web</code>；能重启、能看日志就行</li>
+              <li data-zh="dsh web 每次启动会打印一条带 token 的访问链接，务必留着它" data-en="Every launch prints an access link containing a token — keep it handy">dsh web 每次启动会打印一条带 token 的访问链接，务必留着</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 data-zh="认得清「谁是 Host」" data-en="Know who the Host header is">认得清「谁是 Host」</h3>
+            <p class="scope" data-zh="最容易踩的一条" data-en="The most common trap">最容易踩的一条</p>
+            <ul>
+              <li data-zh="dsh web 只接受 --trusted-host 白名单里的主机名，否则 /api/* 一律 403" data-en="dsh web only accepts host names on the --trusted-host allow-list; anything else gets 403 on /api/*">dsh web 只接受 <code>--trusted-host</code> 白名单里的主机名，否则 <code>/api/*</code> 一律 403</li>
+              <li data-zh="用 IP 访问就要加 IP，用域名访问就要加域名，https 不会自动被信任" data-en="Reaching it by IP means listing the IP; by domain means listing the domain. https does not make a host trusted by itself">用 IP 访问就要加 IP，用域名访问就要加域名</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="note">
+          <p>
+            <b data-zh="怎么确认服务活着：" data-en="Confirming it is alive:">怎么确认服务活着：</b>
+          </p>
+          <div class="term">
+            <div class="bar">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="file">server</span>
+              <span class="chip" data-zh="探测" data-en="probe">探测</span>
+            </div>
+            <pre><code>systemctl is-active dsh-web
+journalctl -u dsh-web -n 50 | grep "dsh web:"   <span class="c" data-zh="# 这里会打印带 token 的链接" data-en="# the token link is printed here"># 这里会打印带 token 的链接</span>
+ss -ltnp | grep 3081                            <span class="c" data-zh="# 应该能看到 127.0.0.1:3081" data-en="# expect 127.0.0.1:3081"># 应该能看到 127.0.0.1:3081</span>
+curl -sI http://127.0.0.1:3081 | head -1          <span class="c" data-zh="# 401 属正常：没带 token 就进不去" data-en="# 401 is normal: no token, no entry"># 401 属正常：没带 token 就进不去</span></code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================== tunnel -->
+      <section id="tunnel">
+        <h2 data-zh="① SSH 隧道：不对外开放任何端口" data-en="① SSH tunnel: expose nothing">① SSH 隧道：不对外开放任何端口</h2>
+        <p
+          class="sub"
+          data-zh="把服务器的 127.0.0.1:3081 通过 SSH 映射到你本机，流量全程加密，服务器不需要开任何额外端口 —— 推荐先从这个开始。"
+          data-en="Forward the server's 127.0.0.1:3081 to your own machine over SSH. Traffic is encrypted end to end and no extra port is opened on the server — start here."
+        >把服务器的 127.0.0.1:3081 通过 SSH 映射到你本机，流量全程加密，服务器不需要开任何额外端口 —— 推荐先从这个开始。</p>
+
+        <div class="plan">
+          <header>
+            <span class="num">1</span>
+            <h3 data-zh="在你的电脑上开一条隧道" data-en="Open a tunnel from your laptop">在你的电脑上开一条隧道</h3>
+            <span class="badge" data-zh="适用于 笔记本 / 台式机" data-en="laptop / desktop">适用于 笔记本 / 台式机</span>
+          </header>
+          <div class="body">
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file" data-zh="本机终端" data-en="local terminal">本机终端</span>
+                <span class="chip">ssh</span>
+              </div>
+              <pre><code>ssh -N -L 3081:127.0.0.1:3081 root@SERVER_IP</code></pre>
+            </div>
+            <ul class="plain">
+              <li data-zh="-N：只做转发，不在服务器上开交互 shell" data-en="-N: forward only, without opening an interactive shell on the server"><code>-N</code>：只做转发，不在服务器上开交互 shell</li>
+              <li data-zh="-L 3081:127.0.0.1:3081：本机 3081 →（经 SSH）→ 服务器的 127.0.0.1:3081" data-en="-L 3081:127.0.0.1:3081: local port 3081 to the server's 127.0.0.1:3081, through SSH"><code>-L 3081:127.0.0.1:3081</code>：本机 3081 →（经 SSH）→ 服务器的 127.0.0.1:3081</li>
+              <li data-zh="本机 3081 被占用时，换成 -L 8080:127.0.0.1:3081 即可" data-en="If local 3081 is taken, use -L 8080:127.0.0.1:3081 instead">本机 3081 被占用时，换成 <code>-L 8080:127.0.0.1:3081</code> 即可</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">2</span>
+            <h3 data-zh="在本机浏览器打开并认证" data-en="Open it locally and authenticate">在本机浏览器打开并认证</h3>
+            <span class="badge" data-zh="无需改配置" data-en="no config change">无需改配置</span>
+          </header>
+          <div class="body">
+            <ol class="steps">
+              <li>
+                <b data-zh="先拿到带 token 的完整链接" data-en="Get the full token link first">先拿到带 token 的完整链接</b>
+                <span data-zh="在服务器上执行下面的命令；dsh web 打印的那行里 token= 后面就是启动令牌。"
+                      data-en="Run this on the server; the token printed by dsh web is the launch token.">在服务器上执行下面的命令；dsh web 打印的那行里 <code>token=</code> 后面就是启动令牌。</span>
+                <div class="term">
+                  <div class="bar">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="file">server</span>
+                    <span class="chip">journalctl</span>
+                  </div>
+                  <pre><code>journalctl -u dsh-web -n 100 | grep -o "token=[A-Za-z0-9_-]*" | tail -1</code></pre>
+                </div>
+              </li>
+              <li>
+                <b data-zh="把链接的域名换成 127.0.0.1，然后打开" data-en="Swap the host for 127.0.0.1 and open it">把链接的域名换成 127.0.0.1，然后打开</b>
+                <div class="term">
+                  <div class="bar">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="file" data-zh="本机浏览器" data-en="local browser">本机浏览器</span>
+                    <span class="chip">url</span>
+                  </div>
+                  <pre><code>http://127.0.0.1:3081/?token=把上一步的令牌粘在这里</code></pre>
+                </div>
+                <span data-zh="第一次带 token 打开会种下一天的会话 cookie，之后直接访问 http://127.0.0.1:3081 就行。"
+                      data-en="The first visit with the token plants a session cookie, after which http://127.0.0.1:3081 just works.">第一次带 token 打开会种下一天的会话 cookie，之后直接访问 <code>http://127.0.0.1:3081</code> 就行。</span>
+              </li>
+            </ol>
+            <div class="note ok">
+              <p data-zh="这条路上不需要动 --trusted-host：请求的 Host 是 127.0.0.1:3081，本来就在白名单里。这也是它最省事的原因。"
+                 data-en="Nothing needs to change in --trusted-host here: the request's Host is 127.0.0.1:3081, which is already allowed. That is why this method is the least work.">这条路上不需要动 <code>--trusted-host</code>：请求的 Host 是 <code>127.0.0.1:3081</code>，本来就在白名单里。这也是它最省事的原因。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">3</span>
+            <h3 data-zh="让它更好用：别名与自动重连" data-en="Make it nicer: alias and auto-reconnect">让它更好用：别名与自动重连</h3>
+            <span class="badge" data-zh="可选" data-en="optional">可选</span>
+          </header>
+          <div class="body">
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">~/.ssh/config</span>
+                <span class="chip">ssh</span>
+              </div>
+              <pre><code><span class="c" data-zh="# 本机 ~/.ssh/config" data-en="# local ~/.ssh/config"># 本机 ~/.ssh/config</span>
+Host dsh
+    HostName SERVER_IP
+    User root
+    LocalForward 3081 127.0.0.1:3081
+    ServerAliveInterval 30
+    ServerAliveCountMax 3</code></pre>
+            </div>
+            <ul class="plain">
+              <li data-zh="之后只需要 ssh -N dsh，端口转发写在配置里，不用每次记参数" data-en="After that, ssh -N dsh is enough — the forward lives in the config">之后只需要 <code>ssh -N dsh</code>，端口转发写在配置里</li>
+              <li data-zh="ServerAliveInterval 让空闲隧道定期发心跳，避免被中间设备掐断" data-en="ServerAliveInterval keeps an idle tunnel alive through middleboxes"><code>ServerAliveInterval</code> 让空闲隧道定期发心跳，避免被中间设备掐断</li>
+              <li data-zh="断线要自动重连就装 autossh：autossh -M 0 -N dsh" data-en="For automatic reconnect, install autossh: autossh -M 0 -N dsh">断线要自动重连就装 autossh：<code>autossh -M 0 -N dsh</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">4</span>
+            <h3 data-zh="手机也想用隧道？" data-en="Want the tunnel on a phone too?">手机也想用隧道？</h3>
+            <span class="badge" data-zh="注意流量归属" data-en="mind the traffic path">注意流量归属</span>
+          </header>
+          <div class="body">
+            <p data-zh="手机的浏览器自己不会开隧道，得靠手机上的 SSH 客户端来开："
+               data-en="A phone browser cannot open a tunnel by itself, so an SSH app on the phone has to do it:">手机的浏览器自己不会开隧道，得靠手机上的 SSH 客户端来开：</p>
+            <ul class="plain">
+              <li data-zh="iOS：Termius（免费版够用）等 SSH 客户端，新建连接后配置本地端口转发 3081 → 127.0.0.1:3081"
+                  data-en="iOS: Termius (the free tier is enough) or similar; add a local port forward 3081 → 127.0.0.1:3081 to the connection">iOS：Termius（免费版够用）等 SSH 客户端，新建连接后配置本地端口转发 <code>3081 → 127.0.0.1:3081</code></li>
+              <li data-zh="建好之后在手机浏览器访问 http://127.0.0.1:3081 —— 注意这个 127.0.0.1 是手机自己"
+                  data-en="Then browse to http://127.0.0.1:3081 on the phone — that 127.0.0.1 is the phone itself">建好之后在手机浏览器访问 <code>http://127.0.0.1:3081</code> —— 注意这个 127.0.0.1 是手机自己</li>
+              <li data-zh="有些客户端在切到后台时会断开隧道，需要允许它常驻后台"
+                  data-en="Some clients drop the tunnel when backgrounded; allow the app to stay resident">有些客户端在切到后台时会断开隧道，需要允许它常驻后台</li>
+            </ul>
+            <div class="note danger">
+              <p data-zh="想让同一局域网里的其它设备（比如平板）也走这条隧道，必须让转发监听在 0.0.0.0 上：服务器加 GatewayPorts clientspecified，命令加 -g。这等于把你那台机器的 3081 端口对局域网公开，只建议在可信网络里临时这么做。"
+                 data-en="To let other devices on the same LAN (a tablet, say) ride the tunnel, the forward has to listen on 0.0.0.0: set GatewayPorts clientspecified on the server and add -g to the command. That publishes port 3081 to your local network — only do it temporarily, on a network you trust.">想让同一局域网里的其它设备（比如平板）也走这条隧道，必须让转发监听在 <code>0.0.0.0</code> 上：服务器加 <code>GatewayPorts clientspecified</code>，命令加 <code>-g</code>。这等于把你那台机器的 3081 端口对局域网公开，只建议在可信网络里临时这么做。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= nginx-ip -->
+      <section id="nginx-ip">
+        <h2 data-zh="② nginx 反向代理：有公网 IP，没有域名" data-en="② nginx reverse proxy: public IP, no domain">② nginx 反向代理：有公网 IP，没有域名</h2>
+        <p
+          class="sub"
+          data-zh="让服务器直接对外提供访问，用 http://IP:端口 打开。配置最少，代价是明文 HTTP，而且认证令牌会出现在 URL 里。"
+          data-en="Serve it directly from the server and open http://IP:port. Minimal configuration, at the cost of plain HTTP and a token that travels in the URL."
+        >让服务器直接对外提供访问，用 <code>http://IP:端口</code> 打开。配置最少，代价是明文 HTTP，而且认证令牌会出现在 URL 里。</p>
+
+        <div class="plan">
+          <header>
+            <span class="num">1</span>
+            <h3 data-zh="装 nginx 并加一个站点" data-en="Install nginx and add one site">装 nginx 并加一个站点</h3>
+            <span class="badge">nginx</span>
+          </header>
+          <div class="body">
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip">apt</span>
+              </div>
+              <pre><code>apt update &amp;&amp; apt install -y nginx</code></pre>
+            </div>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">/etc/nginx/sites-available/dsh</span>
+                <span class="chip">nginx</span>
+              </div>
+              <pre><code>map $arg_token $dsh_ok {
+    default                 0;
+    "PASTE_LAUNCH_TOKEN"    1;   <span class="c" data-zh="# 与 dsh web 打印的 token 完全一致" data-en="# exactly the token dsh web printed"># 与 dsh web 打印的 token 完全一致</span>
+}
+
+server {
+    listen 8080;
+    server_name _;
+
+    <span class="c" data-zh="# 带 token 的首次访问放行，其余要求已有会话 cookie" data-en="# a first visit with the token passes; everything else needs the session cookie"># 带 token 的首次访问放行，其余要求已有会话 cookie</span>
+    if ($dsh_ok = 0) {
+        set $dsh_need_auth 1;
+    }
+
+    location / {
+        proxy_pass         http://127.0.0.1:3081;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;   <span class="c" data-zh="# WebSocket / SSE 需要" data-en="# needed for WebSocket / SSE"># WebSocket / SSE 需要</span>
+        proxy_set_header   Connection        "upgrade";
+        proxy_read_timeout 3600s;                              <span class="c" data-zh="# 长连接不要被 nginx 掐断" data-en="# do not cut long-lived streams"># 长连接不要被 nginx 掐断</span>
+    }
+}</code></pre>
+            </div>
+            <div class="note">
+              <p data-zh="上面这段 if 只是占位示意，真正的访问控制交给 dsh 自己的 token 会话 cookie 就够了 —— nginx 只负责转发。要额外的门禁，用 ③ 里的 basic auth 或 Cloudflare Tunnel 更省心。"
+                 data-en="That if block is only a placeholder: dsh's own token cookie is the access control, and nginx just forwards. For an extra gate, the basic auth or Cloudflare Tunnel in ③ is less trouble.">上面这段 <code>if</code> 只是占位示意，真正的访问控制交给 dsh 自己的 token 会话 cookie 就够了 —— nginx 只负责转发。要额外的门禁，用 ③ 里的 basic auth 或 Cloudflare Tunnel 更省心。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">2</span>
+            <h3 data-zh="启用站点、放行端口" data-en="Enable the site and open the port">启用站点、放行端口</h3>
+            <span class="badge" data-zh="防火墙别忘" data-en="do not forget the firewall">防火墙别忘</span>
+          </header>
+          <div class="body">
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip">nginx</span>
+              </div>
+              <pre><code>ln -s /etc/nginx/sites-available/dsh /etc/nginx/sites-enabled/dsh
+nginx -t &amp;&amp; systemctl reload nginx</code></pre>
+            </div>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip" data-zh="防火墙" data-en="firewall">防火墙</span>
+              </div>
+              <pre><code>ufw allow 8080/tcp                       <span class="c" data-zh="# Ubuntu / Debian" data-en="# Ubuntu / Debian"># Ubuntu / Debian</span>
+firewall-cmd --add-port=8080/tcp --permanent &amp;&amp; firewall-cmd --reload   <span class="c" data-zh="# CentOS / RHEL" data-en="# CentOS / RHEL"># CentOS / RHEL</span></code></pre>
+            </div>
+            <ul class="plain">
+              <li data-zh="云服务器还要在控制台的「安全组 / 网络 ACL」里放行同一个端口 —— 这一步经常被漏掉，表现为「本机 curl 通、外网连不上」"
+                  data-en="On a cloud VM also open the same port in the console's security group; forgetting it looks exactly like “works from the box, unreachable from outside”">云服务器还要在控制台的「安全组 / 网络 ACL」里放行同一个端口 —— 这一步经常被漏掉，表现为「本机 curl 通、外网连不上」</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">3</span>
+            <h3 data-zh="把公网 IP 加进 --trusted-host" data-en="Add the public IP to --trusted-host">把公网 IP 加进 --trusted-host</h3>
+            <span class="badge" data-zh="403 的根源" data-en="the source of 403s">403 的根源</span>
+          </header>
+          <div class="body">
+            <p data-zh="用 IP 访问时，浏览器的 Host 是 IP —— dsh web 只对白名单里的 Host 提供 /api/*，所以必须显式加上："
+               data-en="When you reach it by IP the browser's Host header is that IP, and dsh web only serves /api/* to allow-listed hosts, so add it explicitly:">用 IP 访问时，浏览器的 Host 是 IP —— dsh web 只对白名单里的 Host 提供 <code>/api/*</code>，所以必须显式加上：</p>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">/etc/systemd/system/dsh-web.service</span>
+                <span class="chip">systemd</span>
+              </div>
+              <pre><code>ExecStart=/usr/bin/dsh web --no-open \
+  --host 127.0.0.1 --port 3081 \
+  --trusted-host 127.0.0.1 \
+  --trusted-host localhost \
+  --trusted-host 203.0.113.10        <span class="c" data-zh="# ← 你的公网 IP" data-en="# ← your public IP"># ← 你的公网 IP</span></code></pre>
+            </div>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip">systemctl</span>
+              </div>
+              <pre><code>systemctl daemon-reload &amp;&amp; systemctl restart dsh-web</code></pre>
+            </div>
+            <ol class="steps">
+              <li>
+                <b data-zh="拿 token 并访问" data-en="Grab the token and open it">拿 token 并访问</b>
+                <div class="term">
+                  <div class="bar">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="file" data-zh="你的电脑或手机浏览器" data-en="your browser">你的电脑或手机浏览器</span>
+                    <span class="chip">url</span>
+                  </div>
+                  <pre><code>http://203.0.113.10:8080/?token=启动令牌</code></pre>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="note danger">
+          <p data-zh="明文 HTTP 的代价说清楚：token 会出现在 URL 里（浏览器历史、中间设备日志都会留痕），同网络的人可以嗅探；而且 http:// 不是安全上下文，剪贴板、部分 PWA 能力会被浏览器限制。临时用可以，长期用请走 ③。"
+             data-en="Be clear about the cost of plain HTTP: the token appears in the URL (browser history, proxy logs), anyone on the path can read it, and http:// is not a secure context, so the browser restricts the clipboard and parts of the PWA surface. Fine for a quick look; use ③ for anything long-lived.">明文 HTTP 的代价说清楚：token 会出现在 URL 里（浏览器历史、中间设备日志都会留痕），同网络的人可以嗅探；而且 <code>http://</code> 不是安全上下文，剪贴板、部分 PWA 能力会被浏览器限制。临时用可以，长期用请走 ③。</p>
+        </div>
+      </section>
+
+      <!-- ===================================================== nginx-domain -->
+      <section id="nginx-domain">
+        <h2 data-zh="③ nginx + 域名 + TLS：可以长期用的方案" data-en="③ nginx + domain + TLS: the one to live with">③ nginx + 域名 + TLS：可以长期用的方案</h2>
+        <p
+          class="sub"
+          data-zh="一个免费域名配 Let's Encrypt 证书，浏览器不报警告，手机上也能「添加到主屏幕」当应用用。"
+          data-en="A free domain plus a Let's Encrypt certificate: no browser warnings, and on a phone you can add it to the home screen and use it like an app."
+        >一个免费域名配 Let's Encrypt 证书，浏览器不报警告，手机上也能「添加到主屏幕」当应用用。</p>
+
+        <div class="plan">
+          <header>
+            <span class="num">1</span>
+            <h3 data-zh="把域名解析到服务器 IP" data-en="Point a domain at the server">把域名解析到服务器 IP</h3>
+            <span class="badge">DNS</span>
+          </header>
+          <div class="body">
+            <ul class="plain">
+              <li data-zh="没有域名可以用免费二级域名，例如 DuckDNS、afraid.org 的 FreeDNS；也可以直接买一个最便宜的后缀"
+                  data-en="No domain yet? Free subdomains work, e.g. DuckDNS or afraid.org's FreeDNS, or buy the cheapest TLD">没有域名可以用免费二级域名，例如 DuckDNS、afraid.org 的 FreeDNS；也可以直接买一个最便宜的后缀</li>
+              <li data-zh="加一条 A 记录：主机名 dsh，值 = 服务器公网 IP。没有其他解析时用 @ 指向根域名"
+                  data-en="Add an A record: host dsh, value = the server's public IP. Use @ for the apex if nothing else is there">加一条 A 记录：主机名 <code>dsh</code>，值 = 服务器公网 IP。没有其他解析时用 <code>@</code> 指向根域名</li>
+              <li data-zh="生效后先自查：dig +short dsh.example.com 应该返回你的公网 IP"
+                  data-en="Verify before going on: dig +short dsh.example.com must return your public IP">生效后先自查：<code>dig +short dsh.example.com</code> 应该返回你的公网 IP</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">2</span>
+            <h3 data-zh="签发证书并把 nginx 切到 443" data-en="Issue a certificate and move nginx to 443">签发证书并把 nginx 切到 443</h3>
+            <span class="badge">TLS</span>
+          </header>
+          <div class="body">
+            <p data-zh="最省事的是 certbot：它自己申请证书，还会把 nginx 配置改好并装好自动续期。"
+               data-en="The least work is certbot: it issues the certificate, rewrites the nginx config and installs automatic renewal.">最省事的是 certbot：它自己申请证书，还会把 nginx 配置改好并装好自动续期。</p>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip">certbot</span>
+              </div>
+              <pre><code>apt install -y certbot python3-certbot-nginx
+certbot --nginx -d dsh.example.com        <span class="c" data-zh="# 自动申请 + 改写配置 + 配置续期" data-en="# issue, rewrite the config, schedule renewal"># 自动申请 + 改写配置 + 配置续期</span>
+systemctl list-timers | grep certbot      <span class="c" data-zh="# 确认续期定时器已就位" data-en="# confirm the renewal timer exists"># 确认续期定时器已就位</span></code></pre>
+            </div>
+            <p data-zh="想自己掌控配置，就用 acme.sh 的 webroot 模式签发，再手写一个 443 站点："
+               data-en="If you would rather control the config, issue with acme.sh in webroot mode and write the 443 site yourself:">想自己掌控配置，就用 acme.sh 的 webroot 模式签发，再手写一个 443 站点：</p>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">/etc/nginx/sites-available/dsh</span>
+                <span class="chip">nginx</span>
+              </div>
+              <pre><code>server {
+    listen 80;
+    server_name dsh.example.com;
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name dsh.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/dsh.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dsh.example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    <span class="c" data-zh="# 可选：再上一道 basic auth（会与 dsh 的 token 叠加成两次提示）" data-en="# optional: an extra basic-auth gate (stacks with dsh's token prompt)"># 可选：再上一道 basic auth（会与 dsh 的 token 叠加成两次提示）</span>
+    <span class="c" data-zh="# auth_basic \"DSH\"; auth_basic_user_file /etc/nginx/.htpasswd_dsh;" data-en="# auth_basic \"DSH\"; auth_basic_user_file /etc/nginx/.htpasswd_dsh;"># auth_basic "DSH"; auth_basic_user_file /etc/nginx/.htpasswd_dsh;</span>
+
+    location / {
+        proxy_pass         http://127.0.0.1:3081;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_buffering    off;            <span class="c" data-zh="# 流式输出不要被缓冲" data-en="# do not buffer streamed output"># 流式输出不要被缓冲</span>
+    }
+}</code></pre>
+            </div>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">server</span>
+                <span class="chip" data-zh="防火墙" data-en="firewall">防火墙</span>
+              </div>
+              <pre><code>ufw allow 80/tcp &amp;&amp; ufw allow 443/tcp
+nginx -t &amp;&amp; systemctl reload nginx</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="plan">
+          <header>
+            <span class="num">3</span>
+            <h3 data-zh="把 --trusted-host 换成域名" data-en="Switch --trusted-host to the domain">把 --trusted-host 换成域名</h3>
+            <span class="badge" data-zh="不加就 403" data-en="or you get 403">不加就 403</span>
+          </header>
+          <div class="body">
+            <p data-zh="这一步和方案 ② 是同一个道理，只是白名单里换成域名："
+               data-en="Same rule as method ②, with the domain on the allow-list instead of the IP:">这一步和方案 ② 是同一个道理，只是白名单里换成域名：</p>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">/etc/systemd/system/dsh-web.service</span>
+                <span class="chip">systemd</span>
+              </div>
+              <pre><code>ExecStart=/usr/bin/dsh web --no-open \
+  --host 127.0.0.1 --port 3081 \
+  --trusted-host 127.0.0.1 --trusted-host localhost \
+  --trusted-host dsh.example.com     <span class="c" data-zh="# ← 你的域名" data-en="# ← your domain"># ← 你的域名</span></code></pre>
+            </div>
+            <div class="term">
+              <div class="bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file" data-zh="任意设备浏览器" data-en="any device">任意设备浏览器</span>
+                <span class="chip">url</span>
+              </div>
+              <pre><code>https://dsh.example.com/?token=启动令牌</code></pre>
+            </div>
+            <div class="note ok">
+              <p data-zh="到这一步，电脑和手机用的是同一个地址，证书受信任，token 也不再出现在长期使用的 URL 里（会话 cookie 顶一天）。"
+                 data-en="At this point the laptop and the phone use one address, the certificate is trusted, and the token stops appearing in everyday URLs (the session cookie covers a day).">到这一步，电脑和手机用的是同一个地址，证书受信任，token 也不再出现在长期使用的 URL 里（会话 cookie 顶一天）。</p>
+            </div>
+            <p data-zh="不想自己管证书和防火墙，也可以用 Cloudflare Tunnel：把 cloudflared 装在服务器上，出一条隧道指向 127.0.0.1:3081，公网侧不用开任何端口，TLS 由 Cloudflare 终止。代价是多一个外部依赖，并且要记得同样把域名加进 --trusted-host。"
+               data-en="If you would rather not manage certificates or a firewall, Cloudflare Tunnel is the alternative: run cloudflared on the server, point a tunnel at 127.0.0.1:3081, open no ports on the public side, and let Cloudflare terminate TLS. The cost is one external dependency — and the same --trusted-host entry for the domain.">不想自己管证书和防火墙，也可以用 Cloudflare Tunnel：把 <code>cloudflared</code> 装在服务器上，出一条隧道指向 <code>127.0.0.1:3081</code>，公网侧不用开任何端口，TLS 由 Cloudflare 终止。代价是多一个外部依赖，并且要记得同样把域名加进 <code>--trusted-host</code>。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================== mobile -->
+      <section id="mobile">
+        <h2 data-zh="手机端：三种方案各自的体验" data-en="On a phone: how each method feels">手机端：三种方案各自的体验</h2>
+        <p
+          class="sub"
+          data-zh="手机浏览器没有「终端」，所以方案 ① 在手机上要用 SSH 客户端；②③ 则只要有浏览器就能用。"
+          data-en="A phone browser has no terminal, so method ① needs an SSH app while ② and ③ need nothing but a browser."
+        >手机浏览器没有「终端」，所以方案 ① 在手机上要用 SSH 客户端；②③ 则只要有浏览器就能用。</p>
+        <div class="cards">
+          <div class="card">
+            <h3 data-zh="加到主屏幕当应用" data-en="Add it to the home screen">加到主屏幕当应用</h3>
+            <p class="scope" data-zh="仅 ②③" data-en="② and ③ only">仅 ②③</p>
+            <ul>
+              <li data-zh="iOS Safari：分享 → 添加到主屏幕；Android Chrome：菜单 → 添加到主屏幕 / 安装应用"
+                  data-en="iOS Safari: Share → Add to Home Screen. Android Chrome: menu → Add to Home screen / Install app">iOS Safari：分享 → 添加到主屏幕；Android Chrome：菜单 → 添加到主屏幕 / 安装应用</li>
+              <li data-zh="独立窗口没有地址栏，视觉上更接近原生应用；但注意 iOS 的软键盘行为与浏览器标签页略有差别"
+                  data-en="A standalone window has no address bar and feels closer to a native app — but note that iOS soft-keyboard behaviour differs slightly from a browser tab">独立窗口没有地址栏，视觉上更接近原生应用；但注意 iOS 的软键盘行为与浏览器标签页略有差别</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 data-zh="一次认证，长期可用" data-en="Authenticate once, use it for a while">一次认证，长期可用</h3>
+            <p class="scope" data-zh="会话 cookie 有效期一天" data-en="the session cookie lasts a day">会话 cookie 有效期一天</p>
+            <ul>
+              <li data-zh="每次带 token 打开一次，就重新获得一天的会话"
+                  data-en="Opening the token link again buys another day">每次带 token 打开一次，就重新获得一天的会话</li>
+              <li data-zh="把带 token 的链接存在自己的密码管理器里，比留在浏览器历史里安全"
+                  data-en="Keep the token link in a password manager rather than in browser history">把带 token 的链接存在自己的密码管理器里，比留在浏览器历史里安全</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 data-zh="手机上更顺手的配合" data-en="What makes it pleasant on a phone">手机上更顺手的配合</h3>
+            <p class="scope" data-zh="与本项目的插件互补" data-en="pairs with this project's plugin">与本项目的插件互补</p>
+            <ul>
+              <li data-zh="装上 dsh-mobile-ux 插件后，窄屏布局、软键盘跟随、侧边栏单击切换会话都已处理"
+                  data-en="With the dsh-mobile-ux plugin installed, the narrow layout, soft-keyboard tracking and single-tap session switching are already handled">装上 <a href="./">dsh-mobile-ux</a> 插件后，窄屏布局、软键盘跟随、侧边栏单击切换会话都已处理</li>
+              <li data-zh="用 https 访问时浏览器才允许把内容写进剪贴板，这也是方案 ③ 更实用的原因之一"
+                  data-en="The browser only allows clipboard writes over https — one more reason method ③ is the practical one">用 https 访问时浏览器才允许把内容写进剪贴板，这也是方案 ③ 更实用的原因之一</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================== chooser -->
+      <section id="chooser">
+        <h2 data-zh="怎么选" data-en="Which one to pick">怎么选</h2>
+        <p class="sub" data-zh="按「谁需要访问」和「能不能接受开端口」两个问题决定。"
+           data-en="Two questions decide it: who needs access, and are you willing to open a port.">按「谁需要访问」和「能不能接受开端口」两个问题决定。</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th data-zh="方案" data-en="Method">方案</th>
+                <th data-zh="适用" data-en="Use when">适用</th>
+                <th data-zh="服务器开端口" data-en="Open ports">服务器开端口</th>
+                <th data-zh="加密" data-en="Encryption">加密</th>
+                <th data-zh="主要代价" data-en="Main cost">主要代价</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>① SSH 隧道</b></td>
+                <td data-zh="只有你自己、一两台设备" data-en="Just you, one or two devices">只有你自己、一两台设备</td>
+                <td data-zh="不需要（只用 22）" data-en="none (SSH only)">不需要（只用 22）</td>
+                <td data-zh="SSH 全程加密" data-en="encrypted by SSH">SSH 全程加密</td>
+                <td data-zh="每次要先连隧道；手机端要装 SSH 客户端" data-en="You must bring the tunnel up; phones need an SSH app">每次要先连隧道；手机端要装 SSH 客户端</td>
+              </tr>
+              <tr>
+                <td><b>② nginx + IP</b></td>
+                <td data-zh="临时给别人看、没有域名" data-en="Showing it to someone briefly, no domain">临时给别人看、没有域名</td>
+                <td>8080</td>
+                <td data-zh="无（明文 HTTP）" data-en="none (plain HTTP)">无（明文 HTTP）</td>
+                <td data-zh="token 走明文；非安全上下文功能受限" data-en="token travels in the clear; some web APIs are unavailable">token 走明文；非安全上下文功能受限</td>
+              </tr>
+              <tr>
+                <td><b>③ 域名 + TLS</b></td>
+                <td data-zh="长期自用、多设备、要装到主屏幕" data-en="Daily use, several devices, home-screen app">长期自用、多设备、要装到主屏幕</td>
+                <td>80 / 443</td>
+                <td data-zh="TLS，证书受信任" data-en="TLS with a trusted certificate">TLS，证书受信任</td>
+                <td data-zh="需要域名；证书与续期要维护（certbot 可自动化）" data-en="Needs a domain; certificates to maintain (certbot automates it)">需要域名；证书与续期要维护（certbot 可自动化）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <p data-zh="只给自己用，就选 ①；想省心又要长期用，就选 ③。② 更像是「先看看它长什么样」的临时手段。"
+             data-en="For yourself only, take ①. For long-term use with the least friction, take ③. Treat ② as a way to take a quick look.">只给自己用，就选 ①；想省心又要长期用，就选 ③。② 更像是「先看看它长什么样」的临时手段。</p>
+        </div>
+      </section>
+
+      <!-- ========================================================= trouble -->
+      <section id="trouble">
+        <h2 data-zh="排错：症状 → 原因" data-en="Troubleshooting: symptom → cause">排错：症状 → 原因</h2>
+        <p class="sub" data-zh="这几条覆盖了 90% 的「连不上」。"
+           data-en="These cover most of the “it does not connect” cases.">这几条覆盖了 90% 的「连不上」。</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th data-zh="症状" data-en="Symptom">症状</th>
+                <th data-zh="多半是" data-en="Most likely">多半是</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-zh="页面能开，但界面一直报错 / 空白" data-en="The page loads, but the UI errors or stays blank">页面能开，但界面一直报错 / 空白</td>
+                <td data-zh="Host 不在 --trusted-host 白名单，/api/* 返回 403" data-en="The Host is not on --trusted-host, so /api/* returns 403">Host 不在 <code>--trusted-host</code> 白名单，<code>/api/*</code> 返回 403</td>
+              </tr>
+              <tr>
+                <td data-zh="dsh web authentication required" data-en="“dsh web authentication required”">“dsh web authentication required”</td>
+                <td data-zh="没带 token 打开，或 cookie 过期（一天）" data-en="Opened without the token, or the day-long cookie expired">没带 token 打开，或 cookie 过期（一天）</td>
+              </tr>
+              <tr>
+                <td data-zh="本机 curl 通，外部连不上" data-en="curl works on the box, nothing from outside">本机 curl 通，外部连不上</td>
+                <td data-zh="云控制台安全组 / 网络 ACL 没放行，或系统防火墙没开" data-en="The cloud security group or the host firewall has not been opened">云控制台安全组 / 网络 ACL 没放行，或系统防火墙没开</td>
+              </tr>
+              <tr>
+                <td data-zh="SSH 隧道连上了，浏览器打不开" data-en="The tunnel is up but the browser cannot connect">SSH 隧道连上了，浏览器打不开</td>
+                <td data-zh="本地端口被占用；或转发写成了服务器的公网 IP（应为 127.0.0.1）" data-en="Local port taken; or the forward targets the server's public IP instead of 127.0.0.1">本地端口被占用；或转发写成了服务器的公网 IP（应为 <code>127.0.0.1</code>）</td>
+              </tr>
+              <tr>
+                <td data-zh="能用，但流式输出卡住不动" data-en="It works, but streamed output stalls">能用，但流式输出卡住不动</td>
+                <td data-zh="nginx 缓冲或超时：加 proxy_buffering off 与更长的 proxy_read_timeout" data-en="nginx buffering or timeout: add proxy_buffering off and a longer proxy_read_timeout">nginx 缓冲或超时：加 <code>proxy_buffering off</code> 与更长的 <code>proxy_read_timeout</code></td>
+              </tr>
+              <tr>
+                <td data-zh="改了插件代码，浏览器没变化" data-en="Plugin code changed, browser shows the old behaviour">改了插件代码，浏览器没变化</td>
+                <td data-zh="bundle 版本号由文件 mtime/size 算出且缓存 immutable —— 重启 dsh-web 并用带 rev 的新 URL" data-en="Bundle revisions come from file mtime/size and are cached immutably — restart dsh-web so the URL changes">bundle 版本号由文件 mtime/size 算出且缓存 immutable —— 重启 <code>dsh-web</code> 并用带 rev 的新 URL</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap row">
+        <a href="https://github.com/68110923/dsh-mobile-ux" data-zh="GitHub 仓库" data-en="GitHub repository">GitHub 仓库</a>
+        <span class="sep">·</span>
+        <a href="./" data-zh="返回首页" data-en="Back to home">返回首页</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>
+        <span class="sep">·</span>
+        <span data-zh="命令中的 SERVER_IP / 域名 / token 请替换成你自己的" data-en="Replace SERVER_IP, the domain and the token with your own">命令中的 SERVER_IP / 域名 / token 请替换成你自己的</span>
+      </div>
+    </footer>
+
+    <script src="./assets/site.js"></script>
+  </body>
+</html>

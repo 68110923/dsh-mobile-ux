@@ -4,7 +4,8 @@
 
 > 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web profile 编写，在 iPhone + Safari（iOS 17）上实测打磨。
 >
-> **在线介绍页：<https://68110923.github.io/dsh-mobile-ux/>**（`docs/` 目录，GitHub Pages）
+> **在线介绍页：<https://68110923.github.io/dsh-mobile-ux/>**（`docs/` 目录，GitHub Pages，中英双语）
+> **接入指南：<https://68110923.github.io/dsh-mobile-ux/access.html>** —— 从电脑或手机用上服务器上的 dsh web：SSH 隧道 / nginx + IP / nginx + 域名 + TLS
 
 ---
 
