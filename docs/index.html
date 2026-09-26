@@ -332,17 +332,21 @@
         margin: 6px 0;
       }
       @media (max-width: 560px) {
-        header.top nav {
-          gap: 12px;
+        header.top .wrap {
+          gap: 8px;
+          padding: 0 14px;
         }
-        header.top nav a.opt {
-          display: none;
+        header.top .brand {
+          gap: 7px;
         }
-        /* The wordmark cannot share a 390px header with the nav and the language
-           switch without breaking across three lines, so the icon carries the
-           brand on a phone. */
         header.top .name {
-          display: none;
+          font-size: 14px;
+        }
+        header.top nav {
+          gap: 10px;
+        }
+        .langs button {
+          padding: 3px 9px;
         }
         .hero {
           padding-top: 36px;
@@ -359,9 +363,6 @@
         </a>
         <nav>
           <a href="#install" data-zh="安装" data-en="Install">安装</a>
-          <a href="#features" data-zh="功能" data-en="Features">功能</a>
-          <a href="#switches" data-zh="开关" data-en="Switches">开关</a>
-          <a class="opt" href="https://github.com/68110923/dsh-mobile-ux">GitHub</a>
           <span class="langs" role="group" aria-label="Language / 语言">
             <button type="button" data-lang="zh" aria-pressed="true">中文</button>
             <button type="button" data-lang="en" aria-pressed="false">EN</button>
