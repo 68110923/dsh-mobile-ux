@@ -5,7 +5,23 @@
 > 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web profile 编写，在 iPhone + Safari（iOS 17）上实测打磨。
 >
 > **在线介绍页：<https://68110923.github.io/dsh-mobile-ux/>**（`docs/` 目录，GitHub Pages，中英双语）
+> **安装指南：<https://68110923.github.io/dsh-mobile-ux/install.html>**
 > **接入指南：<https://68110923.github.io/dsh-mobile-ux/access.html>** —— 从电脑或手机用上服务器上的 dsh web：SSH 隧道 / nginx + IP / nginx + 域名 + TLS
+
+---
+
+## 安装（一条命令）
+
+```bash
+dsh plugin --profile web add github:68110923/dsh-mobile-ux
+systemctl restart dsh-web          # 必须重启，见下
+```
+
+然后在电脑 / 手机上**强制刷新页面**即可。不需要构建、不需要服务端组件、不改产品源码，卸载同样是一条命令。
+
+更完整的说明（npm 与离线安装、三层验证、安装期排错）见 **[安装指南](https://68110923.github.io/dsh-mobile-ux/install.html)**。
+
+> ⚠️ **不重启等于没装**：DSH 用文件的 mtime/ctime/size 算 bundle 版本号，响应头又是 `immutable` 一年缓存 —— 磁盘上改了、服务端也可能返回新内容，但浏览器仍执行旧代码。
 
 ---
 
@@ -119,6 +135,12 @@ node --check client.js         # 语法
 - 防聚焦缩放会**覆盖内容字号**：手机上编辑器固定 17px，"小号"档位对它不再生效。这是取舍——把字号调回 14px，缩放就回来了
 - §3 目前只处理侧边栏会话列表的行；搜索结果的会话行走的是另一套标记，未纳入
 - 插件不改任何产品源码，也不依赖服务端组件
+
+## 安装来源说明
+
+- 从 GitHub 安装（推荐）：`dsh plugin --profile web add github:68110923/dsh-mobile-ux`
+- 本地 / 离线：`dsh plugin --profile web add /path/to/dsh-mobile-ux`（`link:` 语义，改完源码重启即生效）
+- 包名目前是 `@local/mobile-keyboard-viewport`，`@local` 只是历史遗留的本地作用域名，不影响安装；发布到 npm 前需要改成自己的作用域并去掉 `private`
 
 ## License
 
