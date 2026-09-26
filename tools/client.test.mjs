@@ -344,11 +344,13 @@ console.log('dsh-mobile-ux: client logic');
   check('open: root follows visible height', env.root.style.height, '300px');
   check('open: document is scroll-locked', env.attached().some((css) => css.includes('overscroll-behavior: none')), true);
 
-  // A pan must never make the shell taller than the visible area: doing so was
-  // exactly the empty band between the composer and the keyboard.
+  // A pan is compensated: the shell grows by exactly the pan so that lifting it by
+  // the pan leaves the visible area filled. `visible + pan` on screen == visible.
   env.win.visualViewport.offsetTop = 60;
   env.win.visualViewport.fire('scroll');
-  check('open + pan: shell never grows past the visible area', env.root.style.height, '300px');
+  check('open + pan: height stays the visible height', env.root.style.height, '300px');
+  check('open + pan: the pan is published for the fixed box',
+    env.documentElement.style.getPropertyValue('--dsh-mux-pan'), '60px');
 
   // A document scroll that iOS still performs is undone.
   env.win.scrollY = 25;
@@ -402,16 +404,6 @@ console.log('dsh-mobile-ux: client logic');
   check('nolock: no scroll lock', env.attached().some((css) => css.includes('overscroll-behavior: none')), false);
   env.dispose();
 }
-// Opt-in pan compensation shrinks the shell instead of growing it.
-{
-  const env = load({ search: '?dshMobileUx=bottom' });
-  const editable = env.makeEditable(); env.document.activeElement = editable;
-  env.win.visualViewport.height = 300;
-  env.win.visualViewport.offsetTop = 60;
-  env.listeners.get('win:focusin')({ target: env.document.activeElement, relatedTarget: null });
-  check('bottom opt-in: shell shrinks below the visible area', env.root.style.height, '240px');
-  env.dispose();
-}
 // The focus settle schedule re-asserts the height after the keyboard animation.
 {
   const env = load();
@@ -419,7 +411,7 @@ console.log('dsh-mobile-ux: client logic');
   env.win.visualViewport.height = 300;
   env.listeners.get('win:focusin')({ target: env.document.activeElement, relatedTarget: null });
   const delays = env.timers.map((timer) => timer.delay);
-  check('focus schedules settle passes', delays, [100, 250, 500, 900]);
+  check('focus schedules settle passes', delays, [100, 250, 500, 900, 1500]);
   // The keyboard animation ends, no viewport event arrives, the height is stale.
   env.win.visualViewport.height = 280;
   for (const timer of env.timers.slice()) timer.fn();

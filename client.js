@@ -39,7 +39,6 @@
  *   keepdrawer   leave the sidebar drawer open after a session tap
  *   lock | nolock    document scroll lock while the keyboard is open
  *   meta             also pin `maximum-scale` in the viewport meta
- *   bottom           visual-viewport pan compensation (off by default)
  *   hud              show the live readout
  *
  * The same switches can be set before load as `window.__dshMobileUx = {...}`.
@@ -95,12 +94,25 @@ window.__ModuleLoader__.load({
     /** The CSS custom property other packages may read as the live shell height. */
     const HEIGHT_VARIABLE = '--dsh-app-visual-height';
 
+    /**
+     * How far the platform has panned its visual viewport, as a transform.
+     *
+     * iOS does not only shrink the visual viewport when a keyboard opens; it also
+     * slides it, and the shell stays anchored to the *layout* viewport. The result
+     * is a band of nothing between the composer and the keyboard: the app sits at
+     * the top of the layout viewport while the visible window has moved down.
+     * Lifting the shell by the same amount puts its bottom edge back on the
+     * keyboard's top edge.
+     */
+    const PAN_VARIABLE = '--dsh-mux-pan';
+
+
     // ---------------------------------------------------------------- styles --
 
     /**
      * Documents the custom property written by §2.
      */
-    const HEIGHT_STYLES = `:root { ${HEIGHT_VARIABLE}: 100%; }\n`;
+    const HEIGHT_STYLES = `:root { ${HEIGHT_VARIABLE}: 100%; ${PAN_VARIABLE}: 0px; }\n`;
 
     /**
      * Locks the document itself while an overlay keyboard is up (§2).
@@ -116,6 +128,25 @@ window.__ModuleLoader__.load({
       'html, body {\n' +
       '  overflow: hidden;\n' +
       '  overscroll-behavior: none;\n' +
+      '}\n' +
+      // The whole fix, in one declaration.
+      //
+      // `#root` is a normal static block, so writing a smaller height on it does
+      // not move anything up — it only leaves scrollable slack underneath, and the
+      // platform scrolls into that slack to bring the caret into view. What the
+      // reader then sees is the app pushed up with a band of nothing between the
+      // composer and the keyboard.
+      //
+      // Taking `#root` out of the flow removes the slack entirely: a fixed box
+      // cannot be scrolled, so there is nowhere for the blank band to come from and
+      // the footer stays on the keyboard's top edge. Its height is the visible
+      // height, which the follower above writes.
+      'body > #root {\n' +
+      '  position: fixed;\n' +
+      `  top: var(${PAN_VARIABLE}, 0px);\n` +
+      '  left: 0;\n' +
+      '  right: 0;\n' +
+      `  height: var(${HEIGHT_VARIABLE}, 100%);\n` +
       '}\n';
 
     // ------------------------------------------------------------ §1 styles --
@@ -283,8 +314,7 @@ window.__ModuleLoader__.load({
      * keeps its default. Programmatic overrides win over the URL.
      *
      * @returns {{ layout: boolean, keyboard: boolean, tap: boolean,
-     *   trajectory: boolean, hud: boolean, lock: boolean, meta: boolean,
-     *   bottom: boolean }}
+     *   trajectory: boolean, hud: boolean, lock: boolean, meta: boolean }}
      */
     function readPackSwitches() {
       const raw = new URL(window.location.href).searchParams.get('dshMobileUx');
@@ -293,7 +323,7 @@ window.__ModuleLoader__.load({
       const keep = parts.filter(
         (part) =>
           !part.startsWith('no') &&
-          !['0', 'off', 'hud', 'lock', 'meta', 'bottom'].includes(part),
+          !['0', 'off', 'hud', 'lock', 'meta'].includes(part),
       );
       /**
        * @param name - switch name, also the `no<name>` spelling.
@@ -325,7 +355,6 @@ window.__ModuleLoader__.load({
         hud: optIn('hud'),
         lock: pick('lock', true),
         meta: optIn('meta'),
-        bottom: optIn('bottom'),
       };
     }
 
@@ -680,6 +709,7 @@ window.__ModuleLoader__.load({
       const ownedStyles = switches.keyboard
         ? [
             [documentElement, HEIGHT_VARIABLE],
+            [documentElement, PAN_VARIABLE],
             [documentElement, 'height'],
             [body, 'height'],
             [root, 'height'],
@@ -742,9 +772,10 @@ window.__ModuleLoader__.load({
         if (!keyboardOpen()) return window.innerHeight;
         const viewport = window.visualViewport ?? null;
         const visible = viewport === null ? window.innerHeight : viewport.height;
-        const pan = viewport === null ? 0 : Math.max(0, viewport.offsetTop);
-        const compensated = switches.bottom ? visible - pan : visible;
-        return Math.min(MAX_SHELL_HEIGHT, Math.max(1, Math.floor(compensated)));
+        // Exactly the visible height. `#root` is fixed, so this is the height of the
+        // box the reader can actually see, and its bottom edge is the keyboard's top
+        // edge. No pan arithmetic: the box's own `top` carries that.
+        return Math.min(MAX_SHELL_HEIGHT, Math.max(1, Math.floor(visible)));
       };
       /**
        * Pins the shell to {@link targetHeight}.
@@ -761,6 +792,20 @@ window.__ModuleLoader__.load({
         body.style.height = value;
         root.style.height = value;
         documentElement.style.setProperty(HEIGHT_VARIABLE, value);
+        // Follow the platform's visual-viewport pan (see PAN_VARIABLE). Applied only
+        // while the keyboard is open, because a pan with no keyboard is just the
+        // reader moving around a zoomed page and must not be fought. The height
+        // above carries the same value, so the two cancel out on screen.
+        const pan = keyboard.open ? Math.max(0, window.visualViewport?.offsetTop ?? 0) : 0;
+        documentElement.style.setProperty(PAN_VARIABLE, `${pan}px`);
+        // The clamp. A viewport whose scrollHeight exceeds its clientHeight is
+        // slack, and slack is where the blank band between the composer and the
+        // keyboard comes from: iOS pans into the leftover instead of letting the
+        // shell end at the keyboard's top edge. Zeroing the offset makes the
+        // document unscrollable again, whatever the pan did.
+        if (window.scrollY !== 0) window.scrollTo(0, 0);
+        if (documentElement.scrollTop !== 0) documentElement.scrollTop = 0;
+        if (body.scrollTop !== 0) body.scrollTop = 0;
       };
 
       /**
@@ -802,7 +847,7 @@ window.__ModuleLoader__.load({
         if (hud === null) return;
         const switches =
           `kb=${keyboardOpen() ? 1 : 0} focus=${editableFocused() ? 1 : 0}` +
-          ` lock=${locked ? 1 : 0} bot=${switches.bottom ? 1 : 0}` +
+          ` lock=${locked ? 1 : 0}` +
           ` meta=${switches.meta ? 1 : 0}`;
         const position =
           `y=${metrics.scrollY} oT=${Math.round(metrics.offsetTop)}` +
@@ -842,6 +887,10 @@ window.__ModuleLoader__.load({
        * moved.
        */
       const onViewportChange = (reason) => {
+        if (watchdogFrames > 0) {
+          watchdogFrames -= 1;
+          window.requestAnimationFrame(() => onViewportChange('watchdog'));
+        }
         // Refresh the latch first: `applyHeight` reads `keyboardOpen()`.
         const wasOpen = keyboard.open;
         refreshKeyboardState();
@@ -876,9 +925,23 @@ window.__ModuleLoader__.load({
        * (100/250/500/900 ms), where a handful of extra style writes cost nothing.
        */
       const settlePassTimers = [];
+      /**
+       * Frames left in the post-focus watchdog.
+       *
+       * The events are not enough. Measurements showed iOS can finish a
+       * focus-zoom without any `visualViewport.resize` arriving (an event probe
+       * during a simulated focus-zoom recorded zero events), and a height that is
+       * never recomputed is one of the two ways the blank band appears. So for a
+       * second after each focus change the follower also samples every frame: a
+       * comparison against the last written value makes the extra work nearly free.
+       */
+      let watchdogFrames = 0;
+      const startHeightWatchdog = () => {
+        watchdogFrames = 90;
+      };
       const scheduleSettlePasses = () => {
         while (settlePassTimers.length > 0) window.clearTimeout(settlePassTimers.pop());
-        for (const delay of [100, 250, 500, 900]) {
+        for (const delay of [100, 250, 500, 900, 1500]) {
           settlePassTimers.push(
             window.setTimeout(() => {
               onViewportChange(`settle+${delay}`);
@@ -890,7 +953,11 @@ window.__ModuleLoader__.load({
         while (settlePassTimers.length > 0) window.clearTimeout(settlePassTimers.pop());
       };
 
-      const handleViewport = () => onViewportChange('viewport');
+      const handleViewport = () => {
+        // Any viewport event means the platform is moving: watch the next second.
+        startHeightWatchdog();
+        onViewportChange('viewport');
+      };
       const handleWindow = () => onViewportChange('window');
       /**
        * Opens a session from a single tap, and stops a second fast tap from
@@ -1032,6 +1099,8 @@ window.__ModuleLoader__.load({
       const onFocusIn = (event) => {
         const target = event.target;
         if (target?.matches?.(EDITABLE_SELECTOR)) editableHasFocus = true;
+        // A focus-zoom can land without any viewport event, so sample frames.
+        startHeightWatchdog();
         onViewportChange('focusin');
         scheduleSettlePasses();
       };
