@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/mobile-keyboard-viewport',
+  id: 'dsh-mobile-ux',
   factory() {
 
     /**
@@ -462,7 +462,7 @@ window.__ModuleLoader__.load({
      */
     function createHud() {
       const element = document.createElement('div');
-      element.setAttribute('data-dsh-mobile-keyboard-viewport-hud', '');
+      element.setAttribute('data-dsh-mobile-ux-hud', '');
       element.style.cssText = [
         'position:fixed',
         'left:0',
@@ -726,7 +726,7 @@ window.__ModuleLoader__.load({
           ` s=${metrics.scale.toFixed(2)} docH=${metrics.documentScrollHeight}`;
         hud.update(
           [
-            'dsh mobile-keyboard-viewport',
+            'dsh-mobile-ux',
             `vvH=${Math.round(metrics.visualHeight)} ref=${ref} lvh=${metrics.layoutHeight}`,
             `root=${metrics.rootHeight} wrote=${metrics.appliedHeight || '-'}`,
             switches,

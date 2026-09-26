@@ -95,7 +95,7 @@
           </header>
           <div class="body">
             <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"><span data-zh="你的电脑" data-en="your machine">你的电脑</span></span><span class="chip">pnpm</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web add @68110923/dsh-mobile-ux</code></pre></div>
-            <ul class="plain"><li><span data-zh="pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles" data-en="pnpm fetches the repo and registers it in the profile&#x27;s dependencies and dsh.profile.bundles">pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles</span></li><li><span data-zh="需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）" data-en="To pin a revision, use github:68110923/dsh-mobile-ux#v2.0.0 once a tag exists">需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）</span></li><li><span data-zh="想持续跟随 main：装完执行 dsh plugin --profile web update @local/mobile-keyboard-viewport" data-en="To follow main, run dsh plugin --profile web update @local/mobile-keyboard-viewport">想持续跟随 main：装完执行 dsh plugin --profile web update @local/mobile-keyboard-viewport</span></li></ul>
+            <ul class="plain"><li><span data-zh="pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles" data-en="pnpm fetches the repo and registers it in the profile&#x27;s dependencies and dsh.profile.bundles">pnpm 会拉取仓库并把它登记进 profile 的 dependencies 与 dsh.profile.bundles</span></li><li><span data-zh="需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）" data-en="To pin a revision, use github:68110923/dsh-mobile-ux#v2.0.0 once a tag exists">需要固定版本时可以写 github:68110923/dsh-mobile-ux#v2.0.0（打标签后）</span></li><li><span data-zh="想持续跟随 main：装完执行 dsh plugin --profile web update dsh-mobile-ux" data-en="To follow main, run dsh plugin --profile web update dsh-mobile-ux">想持续跟随 main：装完执行 dsh plugin --profile web update dsh-mobile-ux</span></li></ul>
           </div>
         </div>
         <div class="plan">
@@ -229,12 +229,12 @@
           <div class="card">
             <h3 data-zh="卸载" data-en="Uninstall">卸载</h3>
             <p class="scope" data-zh="一条命令 + 重启" data-en="one command plus a restart">一条命令 + 重启</p>
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web remove @local/mobile-keyboard-viewport\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web remove dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
           </div>
           <div class="card">
             <h3 data-zh="升级" data-en="Upgrade">升级</h3>
             <p class="scope" data-zh="从 GitHub 装的跟 main 走" data-en="a github: install follows main">从 GitHub 装的跟 main 走</p>
-            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web update @local/mobile-keyboard-viewport\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
+            <div class="term"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file"></span><span class="chip">terminal</span></div><pre><code><span class="tok-cmd">dsh</span> plugin --profile web update dsh-mobile-ux\n<span class="tok-cmd">systemctl</span> restart dsh-web</code></pre></div>
           </div>
         </div>
       </section>
